@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語タイピング練習</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: #323437;
+            color: #d1d0c5;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 300;
+            color: #e2b714;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #646669;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-size: 0.9rem;
+            color: #646669;
+            cursor: pointer;
+        }
+
+        .control-group input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .custom-input {
+            width: 100px;
+            background: #2c2e31;
+            color: #d1d0c5;
+            border: 2px solid #646669;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        select, button {
+            background: #2c2e31;
+            color: #d1d0c5;
+            border: 2px solid #646669;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        select:hover, button:hover, .custom-input:hover {
+            border-color: #e2b714;
+        }
+        .custom-input:focus {
+            outline: none;
+            border-color: #e2b714;
+        }
+
+        .test-area {
+            max-width: 800px;
+            width: 100%;
+            margin-bottom: 40px;
+            cursor: text;
+        }
+
+        .word-display {
+            background: #2c2e31;
+            padding: 30px;
+            border-radius: 8px;
+            font-size: 1.8rem;
+            line-height: 2.2;
+            /* 3行分の高さを確保してスクロールの基準を安定させる */
+            height: calc((1.8rem * 2.2 * 3) + 60px);
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 変更: wordStream を絶対配置から相対配置へし、折り返しを有効にする */
+        #wordStream {
+            position: relative; /* absolute -> relative に変更 */
+            width: 100%;
+            transition: transform 0.3s ease-in-out;
+            white-space: normal; /* 折り返し有効化 */
+            word-break: break-word;
+            display: block; /* 各 .word は inline-block のまま折り返される */
+        }
+
+        /* 各ワード要素が枠の右にはみ出すことを防ぐ */
+        .word {
+            display: inline-block;
+            margin-right: 1rem;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s;
+            max-width: 100%;
+            box-sizing: border-box;
+            margin-right: 8px; /* 単語の右側に8pxの余白を追加 */
+        }
+
+
+        .word.current {
+            color: #e2b714;
+        }
+
+        .kana-display {
+            font-size: 1.4rem;
+            color: #646669;
+            margin-top: 15px;
+            height: 2.5em;
+            text-align: center;
+            letter-spacing: 2px;
+            background: #2c2e31;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .kana-stream {
+            position: absolute;
+            top: 10px; /* Same as padding */
+            left: 50%;
+            white-space: nowrap;
+        }
+
+        .kana-stream .typed {
+            color: #d1d0c5;
+        }
+        .kana-stream .untyped {
+            opacity: 0.5;
+        }
+
+        #cursor {
+            display: inline-block;
+            background-color: #e2b714;
+            width: 2px;
+            height: 1.4rem;
+            vertical-align: middle;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e2b714;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #646669;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .results {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .results.show {
+            display: flex;
+        }
+
+        .results-content {
+            background: #2c2e31;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .results h2 {
+            color: #e2b714;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .restart-btn {
+            background: #e2b714;
+            color: #323437;
+            font-weight: bold;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+        }
+
+        .restart-btn:hover {
+            background: #f4c430;
+            border-color: #f4c430;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #646669;
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #e2b714;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* --- Level Chart Styles --- */
+        .level-chart {
+            max-width: 800px;
+            width: 100%;
+            margin-top: 60px;
+            padding-bottom: 40px;
+            text-align: center;
+        }
+
+        .level-chart h2 {
+            color: #e2b714;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 300;
+        }
+
+        .level-chart table {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .level-chart th, .level-chart td {
+            padding: 12px 15px;
+            border: 1px solid #646669;
+        }
+
+        .level-chart th {
+            background-color: #2c2e31;
+            color: #e2b714;
+            font-weight: bold;
+        }
+
+        .level-chart tr:nth-child(even) {
+            background-color: #2c2e31;
+        }
+
+        /* --- HP Bar Styles --- */
+        .hp-bar-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hp-bar {
+            flex-grow: 1;
+            height: 22px;
+            background-color: #2c2e31;
+            border: 2px solid #646669;
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hp-fill {
+            height: 100%;
+            width: 100%;
+            background-color: #4caf50; /* Green */
+            transition: width 0.3s ease-in-out, background-color 0.3s ease-in-out;
+        }
+        .hp-fill.low-hp {
+            background-color: #e2b714; /* Yellow */
+        }
+        .hp-fill.danger-hp {
+            background-color: #c94e4e; /* Red */
+        }
+        .hp-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        }
+
+        /* --- HP Bar Animations & Popups --- */
+        .hp-bar.damage-flash {
+            animation: flash-red 0.3s ease-out;
+        }
+
+        @keyframes flash-red {
+            0%, 100% { border-color: #646669; }
+            50% { border-color: #e44; }
+        }
+
+        .damage-popup {
+            position: absolute;
+            top: -25px;
+            right: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #e44;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            animation: popup-and-fade 1s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes popup-and-fade {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">日本語タイピング練習</h1>
+        <p class="subtitle">Japanese Typing Practice</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="wordCountSelect">単語数:</label>
+            <select id="wordCountSelect">
+                <option value="15">15</option>
+                <option value="30" selected>30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <input type="number" id="customWordCount" class="custom-input" placeholder="カスタム" min="1">
+        </div>
+        
+        <div class="control-group">
+            <label for="timeLimitSelect">時間(秒):</label>
+            <select id="timeLimitSelect">
+                <option value="30">30</option>
+                <option value="60" selected>60</option>
+                <option value="120">120</option>
+                <option value="0">無制限</option>
+            </select>
+            <input type="number" id="customTimeLimit" class="custom-input" placeholder="カスタム" min="0">
+        </div>
+
+        <div class="control-group">
+            <input type="checkbox" id="spaceToggle" checked>
+            <label for="spaceToggle">スペース入力を必須にする</label>
+        </div>
+        
+        <button id="restartBtn">再スタート</button>
+        <button id="onlineMatchBtn">オンライン対戦</button>
+    </div>
+
+    <div id="multiplayer-status" style="margin-bottom: 20px; font-size: 1.2rem; color: #e2b714;"></div>
+
+    <div class="test-area" id="testArea">
+        <div id="wordDisplay" class="word-display">
+            <div id="wordStream"></div>
+        </div>
+        <div id="kanaDisplay" class="kana-display">
+            <div id="kanaStream" class="kana-stream"></div>
+        </div>
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+    </div>
+
+    <div id="opponent-view" style="display: none; width: 100%; max-width: 800px; margin-bottom: 40px;">
+        <p style="color: #646669; margin-bottom: 10px;">Opponent</p>
+        <div class="hp-bar-container opponent">
+            <div class="hp-bar">
+                <div id="opponentHpFill" class="hp-fill"></div>
+                <span id="opponentHpValue" class="hp-value"></span>
+            </div>
+        </div>
+        <div class="test-area" id="opponentTestArea">
+            <div id="opponentWordDisplay" class="word-display" style="font-size: 1rem; line-height: 1.8;">
+                <div id="opponentWordStream"></div>
+            </div>
+            <div class="progress-bar">
+                <div id="opponentProgressFill" class="progress-fill"></div>
+            </div>
+        </div>
+        <div class="stats">
+            <div class="stat">
+                <span id="opponentKpm" class="stat-value">0</span>
+                <span class="stat-label">KPM</span>
+            </div>
+            <div class="stat">
+                <span id="opponentAccuracy" class="stat-value">100%</span>
+                <span class="stat-label">正確性</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="hp-bar-container self" style="display: none;">
+        <div class="hp-bar">
+            <div id="playerHpFill" class="hp-fill"></div>
+            <span id="playerHpValue" class="hp-value"></span>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <span id="kpm" class="stat-value">0</span>
+            <span class="stat-label">KPM</span>
+        </div>
+        <div class="stat">
+            <span id="kps" class="stat-value">0.00</span>
+            <span class="stat-label">KPS</span>
+        </div>
+        <div class="stat">
+            <span id="accuracy" class="stat-value">100%</span>
+            <span class="stat-label">正確性</span>
+        </div>
+        <div class="stat">
+            <span id="timer" class="stat-value">60</span>
+            <span class="stat-label">時間</span>
+        </div>
+    </div>
+
+    <!-- Level Chart Section -->
+    <div class="level-chart">
+        <h2>レベル一覧</h2>
+        <table id="levelTable">
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>KPM (キー毎分)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- JSで生成されます -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="results" class="results">
+        <div class="results-content">
+            <h2>結果</h2>
+            <div class="results-grid">
+                <div class="stat">
+                    <span id="finalLevel" class="stat-value">-</span>
+                    <span class="stat-label">Level</span>
+                </div>
+                <div class="stat">
+                    <span id="finalKPM" class="stat-value">0</span>
+                    <span class="stat-label">KPM</span>
+                </div>
+                <div class="stat">
+                    <span id="finalKPS" class="stat-value">0.00</span>
+                    <span class="stat-label">KPS</span>
+                </div>
+                <div class="stat">
+                    <span id="finalAccuracy" class="stat-value">100%</span>
+                    <span class="stat-label">正確性</span>
+                </div>
+                <div class="stat">
+                    <span id="finalTime" class="stat-value">0</span>
+                    <span class="stat-label">経過時間</span>
+                </div>
+            </div>
+            <button id="restartBtnResults" class="restart-btn">もう一度</button>
+        </div>
+    </div>
+
+    <script>
+    (async () => {
+        // --- Logic from typing.ts (transpiled to JS) ---
+        class ChunkPattern {
+        }
+        ChunkPattern.list = new Map([
+            ["あ", [["a"]]], ["い", [["i"], ["yi"]]], ["う", [["u"], ["wu"], ["whu"]]], ["え", [["e"]]], ["お", [["o"]]],
+            ["うぁ", [["wha"]]], ["うぃ", [["wi"], ["whi"]]], ["うぇ", [["we"], ["whe"]]], ["うぉ", [["who"]]],
+            ["ゐ", [["wi"]]], ["ゑ", [["we"]]], ["ぁ", [["la"], ["xa"]]], ["ぃ", [["li"], ["xi"], ["lyi"], ["xyi"]]], ["ぅ", [["lu"], ["xu"]]], ["ぇ", [["le"], ["xe"], ["lye"], ["xye"]]], ["ぉ", [["lo"], ["xo"]]],
+            ["ぃぇ", [["ye"]]], ["か", [["ka"], ["ca"]]], ["き", [["ki"]]], ["く", [["ku"], ["cu"], ["qu"]]], ["け", [["ke"]]], ["こ", [["ko"], ["co"]]],
+            ["きゃ", [["kya"]]], ["きぃ", [["kyi"]]], ["きゅ", [["kyu"]]], ["きぇ", [["kye"]]], ["きょ", [["kyo"]]],
+            ["くゃ", [["qya"]]], ["くゅ", [["qyu"]]], ["くょ", [["qyo"]]], ["くぁ", [["qa"], ["qwa"], ["kwa"]]], ["くぃ", [["qi"], ["qwi"], ["qyi"]]], ["くぅ", [["qwu"]]], ["くぇ", [["qe"], ["qwe"], ["qye"]]], ["くぉ", [["qo"], ["qwo"]]],
+            ["が", [["ga"]]], ["ぎ", [["gi"]]], ["ぐ", [["gu"]]], ["げ", [["ge"]]], ["ご", [["go"]]],
+            ["ぎゃ", [["gya"]]], ["ぎぃ", [["gyi"]]], ["ぎゅ", [["gyu"]]], ["ぎぇ", [["gye"]]], ["ぎょ", [["gyo"]]],
+            ["ぐぁ", [["gwa"]]], ["ぐぃ", [["gwi"]]], ["ぐぅ", [["gwu"]]], ["ぐぇ", [["gwe"]]], ["ぐぉ", [["gwo"]]],
+            ["ヵ", [["lka"], ["xka"]]], ["ヶ", [["lke"], ["xke"]]], ["さ", [["sa"]]], ["し", [["si"], ["ci"], ["shi"]]], ["す", [["su"]]], ["せ", [["se"], ["ce"]]], ["そ", [["so"]]],
+            ["しゃ", [["sya"], ["sha"]]], ["しぃ", [["syi"]]], ["しゅ", [["syu"], ["shu"]]], ["しぇ", [["sye"], ["she"]]], ["しょ", [["syo"], ["sho"]]],
+            ["すぁ", [["swa"]]], ["すぃ", [["swi"]]], ["すぅ", [["swu"]]], ["すぇ", [["swe"]]], ["すぉ", [["swo"]]],
+            ["ざ", [["za"]]], ["じ", [["zi"], ["ji"]]], ["ず", [["zu"]]], ["ぜ", [["ze"]]], ["ぞ", [["zo"]]],
+            ["じゃ", [["ja"], ["zya"], ["jya"]]], ["じぃ", [["zyi"], ["jyi"]]], ["じゅ", [["ju"], ["zyu"], ["jyu"]]], ["じぇ", [["je"], ["zye"], ["jye"]]], ["じょ", [["jo"], ["zyo"], ["jyo"]]],
+            ["た", [["ta"]]], ["ち", [["ti"], ["chi"]]], ["つ", [["tu"], ["tsu"]]], ["て", [["te"]]], ["と", [["to"]]],
+            ["ちゃ", [["tya"], ["cha"], ["cya"]]], ["ちぃ", [["tyi"], ["cyi"]]], ["ちゅ", [["tyu"], ["chu"], ["cyu"]]], ["ちぇ", [["tye"], ["che"], ["cye"]]], ["ちょ", [["tyo"], ["cho"], ["cyo"]]],
+            ["つぁ", [["tsa"]]], ["つぃ", [["tsi"]]], ["つぇ", [["tse"]]], ["つぉ", [["tso"]]],
+            ["てゃ", [["tha"]]], ["てぃ", [["thi"]]], ["てゅ", [["thu"]]], ["てぇ", [["the"]]], ["てょ", [["tho"]]],
+            ["とぁ", [["twa"]]], ["とぃ", [["twi"]]], ["とぅ", [["twu"]]], ["とぇ", [["twe"]]], ["とぉ", [["two"]]],
+            ["だ", [["da"]]], ["ぢ", [["di"]]], ["づ", [["du"]]], ["で", [["de"]]], ["ど", [["do"]]],
+            ["ぢゃ", [["dya"]]], ["ぢぃ", [["dyi"]]], ["ぢゅ", [["dyu"]]], ["ぢぇ", [["dye"]]], ["ぢょ", [["dyo"]]],
+            ["でゃ", [["dha"]]], ["でぃ", [["dhi"]]], ["でゅ", [["dhu"]]], ["でぇ", [["dhe"]]], ["でょ", [["dho"]]],
+            ["どぁ", [["dwa"]]], ["どぃ", [["dwi"]]], ["どぅ", [["dwu"]]], ["どぇ", [["dwe"]]], ["どぉ", [["dwo"]]],
+            ["っ", [["ltu"], ["xtu"], ["ltsu"], ["xtsu"]]], ["な", [["na"]]], ["に", [["ni"]]], ["ぬ", [["nu"]]], ["ね", [["ne"]]], ["の", [["no"]]],
+            ["にゃ", [["nya"]]], ["にぃ", [["nyi"]]], ["にゅ", [["nyu"]]], ["にぇ", [["nye"]]], ["にょ", [["nyo"]]],
+            ["は", [["ha"]]], ["ひ", [["hi"]]], ["ふ", [["hu"], ["fu"]]], ["へ", [["he"]]], ["ほ", [["ho"]]],
+            ["ひゃ", [["hya"]]], ["ひぃ", [["hyi"]]], ["ひゅ", [["hyu"]]], ["ひぇ", [["hye"]]], ["ひょ", [["hyo"]]],
+            ["ふぁ", [["fa"], ["fwa"]]], ["ふぃ", [["fi"], ["fwi"], ["fyi"]]], ["ふぅ", [["fwu"]]], ["ふぇ", [["fe"], ["fwe"], ["fye"]]], ["ふぉ", [["fo"], ["fwo"]]],
+            ["ふゃ", [["fya"]]], ["ふゅ", [["fyu"]]], ["ふょ", [["fyo"]]], ["ば", [["ba"]]], ["び", [["bi"]]], ["ぶ", [["bu"]]], ["べ", [["be"]]], ["ぼ", [["bo"]]],
+            ["びゃ", [["bya"]]], ["びぃ", [["byi"]]], ["びゅ", [["byu"]]], ["びぇ", [["bye"]]], ["びょ", [["byo"]]],
+            ["ヴぁ", [["va"]]], ["ヴぃ", [["vi"]]], ["ヴ", [["vu"]]], ["ヴぇ", [["ve"]]], ["ヴぉ", [["vo"]]],
+            ["ヴゃ", [["vya"]]], ["ヴぃ", [["vyi"]]], ["ヴゅ", [["vyu"]]], ["ヴぇ", [["vye"]]], ["ヴょ", [["vyo"]]],
+            ["ぱ", [["pa"]]], ["ぴ", [["pi"]]], ["ぷ", [["pu"]]], ["ぺ", [["pe"]]], ["ぽ", [["po"]]],
+            ["ぴゃ", [["pya"]]], ["ぴぃ", [["pyi"]]], ["ぴゅ", [["pyu"]]], ["ぴぇ", [["pye"]]], ["ぴょ", [["pyo"]]],
+            ["ま", [["ma"]]], ["み", [["mi"]]], ["む", [["mu"]]], ["め", [["me"]]], ["も", [["mo"]]],
+            ["みゃ", [["mya"]]], ["みぃ", [["myi"]]], ["みゅ", [["myu"]]], ["みぇ", [["mye"]]], ["みょ", [["myo"]]],
+            ["や", [["ya"]]], ["ゆ", [["yu"]]], ["よ", [["yo"]]], ["ゃ", [["lya"], ["xya"]]], ["ゅ", [["lyu"], ["xyu"]]], ["ょ", [["lyo"], ["xyo"]]],
+            ["ら", [["ra"]]], ["り", [["ri"]]], ["る", [["ru"]]], ["れ", [["re"]]], ["ろ", [["ro"]]],
+            ["りゃ", [["rya"]]], ["りぃ", [["ryi"]]], ["りゅ", [["ryu"]]], ["りぇ", [["rye"]]], ["りょ", [["ryo"]]],
+            ["わ", [["wa"]]], ["を", [["wo"]]], ["ん", [["n"], ["nn"], ["n'"], ["xn"]]], ["ゎ", [["lwa"], ["xwa"]]], ["ー", [["-"]]], ["　", [[" "]]]
+        ]);
+        ChunkPattern._initialize = (() => {
+            for (const chunkPattern of ChunkPattern.list) {
+                const kana = chunkPattern[0];
+                if (kana.length >= 2) {
+                    let multiPattern = [];
+                    for (const c of kana) {
+                        if (multiPattern.length === 0) {
+                            multiPattern = ChunkPattern.list.get(c);
+                        }
+                        else {
+                            const tmp = [];
+                            for (const p1 of multiPattern) {
+                                for (const p2 of ChunkPattern.list.get(c)) {
+                                    tmp.push(p1.concat(p2));
+                                }
+                            }
+                            multiPattern = tmp;
+                        }
+                    }
+                    ChunkPattern.list.set(kana, chunkPattern[1].concat(multiPattern));
+                }
+            }
+        })();
+
+        function devideIntoChunk(kana) {
+            const ret = [];
+            for (let i = 0; i < kana.length; ++i) {
+                if (i >= kana.length - 1) {
+                    ret.push(new Chunk(kana[i]));
+                    break;
+                }
+                if (kana[i] !== "っ" && kana[i] !== "ん") {
+                    if (!ChunkPattern.list.has(kana[i] + kana[i + 1])) {
+                        ret.push(new Chunk(kana[i]));
+                    }
+                    else {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        ++i;
+                    }
+                }
+                else {
+                    if (i >= kana.length - 2) {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        break;
+                    }
+                    if (!ChunkPattern.list.has(kana[i + 1] + kana[i + 2])) {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        ++i;
+                    }
+                    else {
+                        ret.push(new Chunk(kana[i] + kana[i + 1] + kana[i + 2]));
+                        i += 2;
+                    }
+                }
+            }
+            return ret;
+        }
+
+        class TypePattern {
+            constructor(romanList) {
+                this._isValid = true;
+                this._romanCount = 0;
+                this._curKanaRomanIndex = 0;
+                this._curKanaRomanCount = 0;
+                this._kanaRomanList = romanList;
+                this._roman = romanList.join("");
+            }
+                        getCurChar() {
+                // 安全に現在のローマ1文字を返す。無ければ空文字。
+                return this._roman[this._romanCount] || '';
+            }
+
+            increment(kanaFinished) {
+                ++this._romanCount;
+                ++this._curKanaRomanCount;
+                if (this._curKanaRomanCount >= this._curKanaRoman.length) {
+                    ++this._curKanaRomanIndex;
+                    this._curKanaRomanCount = 0;
+                    kanaFinished(this._curKanaRomanIndex);
+                }
+            }
+            get _curKanaRoman() {
+                return this._kanaRomanList[this._curKanaRomanIndex];
+            }
+            get isValid() {
+                return this._isValid;
+            }
+            isChunkFinished() {
+                return this._romanCount >= this._roman.length;
+            }
+            invalidate() {
+                this._isValid = false;
+            }
+        }
+
+        class TypePatternList {
+            constructor(romanLists) {
+                this._displayPatternNum = 0;
+                this._isChunkFinished = false;
+                this._additionalRomanCount = 0;
+                this._typePatternList = romanLists.map((romanList) => new TypePattern(romanList));
+            }
+            isCorrectInput(inputChar) {
+                for (const typePattern of this._typePatternList) {
+                    if (typePattern.isValid && typePattern.getCurChar() === inputChar)
+                        return true;
+                }
+                return false;
+            }
+            update(inputChar, kanaFinished) {
+                if (!this.isCorrectInput(inputChar)) {
+                    return false;
+                }
+                for (const typePattern of this._typePatternList) {
+                    if (!typePattern.isValid)
+                        continue;
+                    if (inputChar === typePattern.getCurChar()) {
+                        typePattern.increment(kanaFinished);
+                        if (typePattern.isChunkFinished()) {
+                            this._isChunkFinished = true;
+                            continue;
+                        }
+                    }
+                    else {
+                        if (typePattern === this._typePatternList[this._displayPatternNum]) {
+                            this._displayPatternNum = -1;
+                        }
+                        typePattern.invalidate();
+                    }
+                }
+                if (this._displayPatternNum === -1) {
+                    for (let i = 0; i < this._typePatternList.length; ++i) {
+                        if (this._typePatternList[i].isValid) {
+                            this._displayPatternNum = i;
+                            break;
+                        }
+                    }
+                }
+                return true;
+            }
+            get isChunkFinished() {
+                return this._isChunkFinished;
+            }
+        }
+
+        class Chunk {
+            constructor(kana) {
+                this._kanaCount = 0;
+                this._xtuVowels = ["a", "i", "u", "e", "o", "n"];
+                this._xnVowels = this._xtuVowels.concat(["y"]);
+                this._kana = kana;
+                if (!ChunkPattern.list.has(kana)) {
+                    // This case handles combined chunks like 'ん　'
+                    if (kana.length > 1 && ChunkPattern.list.has(kana[0]) && ChunkPattern.list.has(kana.substr(1))) {
+                         const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        const xnPatterns = ChunkPattern.list.get(kana[0]); // Assuming the first char is special (like 'ん')
+                        for (const roman of curPatterns) {
+                            for (const xn of xnPatterns) {
+                                if (xn[0] !== "n") {
+                                    newPatterns.push(xn.concat(roman));
+                                }
+                                else {
+                                    if (!this._xnVowels.includes(roman[0][0])) {
+                                        newPatterns.push(xn.concat(roman));
+                                    }
+                                }
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    } else {
+                        this._typePatternList = new TypePatternList([[]]); // Empty/invalid
+                    }
+                } else if (kana.length == 1) {
+                    this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+                }
+                else {
+                    if (kana[0] === "っ") {
+                        const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        for (const roman of curPatterns) {
+                            const romanFirstChar = roman[0][0];
+                            if (!this._xtuVowels.includes(romanFirstChar)) {
+                                newPatterns.push([romanFirstChar].concat(roman));
+                            }
+                        }
+                        for (const roman of curPatterns) {
+                            for (const xtu of ChunkPattern.list.get("っ")) {
+                                newPatterns.push(xtu.concat(roman));
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    }
+                    else if (kana[0] === "ん") {
+                        const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        const xnPatterns = ChunkPattern.list.get("ん");
+                        for (const roman of curPatterns) {
+                            for (const xn of xnPatterns) {
+                                if (xn[0] !== "n") {
+                                    newPatterns.push(xn.concat(roman));
+                                }
+                                else {
+                                    if (!this._xnVowels.includes(roman[0][0])) {
+                                        newPatterns.push(xn.concat(roman));
+                                    }
+                                }
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    }
+                    else {
+                        this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+                    }
+                }
+            }
+            update(inputChar) {
+                const kanaFinished = (newKanaCount) => {
+                    this._kanaCount = newKanaCount;
+                };
+                const ret = this._typePatternList.update(inputChar, kanaFinished);
+                if (this._typePatternList.isChunkFinished) {
+                    this._kanaCount = this._kana.length;
+                }
+                return ret;
+            }
+            get kanaCount() {
+                return this._kanaCount;
+            }
+            get isChunkFinished() {
+                return this._typePatternList.isChunkFinished;
+            }
+            get kana() {
+                return this._kana;
+            }
+        }
+
+        class WordTyper {
+            constructor(kana) {
+                this.kana = kana;
+                this.chunks = devideIntoChunk(kana);
+                this.chunkIndex = 0;
+            }
+
+                                    update(key) {
+                if (this.isFinished()) return { isCorrect: false };
+
+                const currentChunk = this.chunks[this.chunkIndex];
+                // 普通の更新をまず試す
+                let isCorrect = currentChunk.update(key);
+
+                // もし通常更新で不正と判定され、かつ現在チャンクが促音（っ）を先頭に持つとき、
+                // 次チャンクの期待する先頭文字が今回の入力キーと一致すれば促音処理を強制する
+                if (!isCorrect) {
+                    const nextChunk = this.chunks[this.chunkIndex + 1];
+                    if (currentChunk && typeof currentChunk.kana === 'string' && currentChunk.kana[0] === 'っ' && nextChunk) {
+                        try {
+                            const tplContainer = nextChunk._typePatternList;
+                            const tpl = tplContainer && tplContainer._typePatternList;
+                            if (tpl && tpl.length > 0) {
+                                // nextChunk のいずれかの TypePattern が現在期待している文字（getCurChar）が key と一致するかを調べる
+                                let matchNextFirstChar = false;
+                                for (const tp of tpl) {
+                                    const c = (tp.getCurChar && tp.getCurChar()) || '';
+                                    if (c === key) {
+                                        matchNextFirstChar = true;
+                                        break;
+                                    }
+                                }
+                                if (matchNextFirstChar) {
+                                    // --- ここで促音チャンクを強制的に完了扱いにする ---
+                                    // currentChunk._kanaCount を直接操作して促音を完了させる
+                                    // （Chunk クラスのゲッターは kanaCount を参照しているため、これで完了扱いになる）
+                                    try {
+                                        currentChunk._kanaCount = currentChunk._kana.length;
+                                    } catch (e) {
+                                        // 何か失敗しても先に進めないだけなので無視
+                                    }
+                                    // chunkIndex を進めて次チャンクに移る
+                                    this.chunkIndex++;
+
+                                    // 同じ key を次チャンクへ再帰的に適用して消費させる
+                                    if (!this.isFinished()) {
+                                        return this.update(key);
+                                    } else {
+                                        // 次チャンクが存在しない場合は成功扱いにする
+                                        return { isCorrect: true, isFinished: this.isFinished() };
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            // 内部アクセスに失敗した場合は通常の不正扱いに落とす
+                        }
+                    }
+                }
+
+                // currentChunk が完了していれば index を進める（通常経路）
+                if (currentChunk.isChunkFinished) {
+                    this.chunkIndex++;
+                }
+
+                return {
+                    isCorrect,
+                    isFinished: this.isFinished(),
+                };
+            }
+
+
+
+            isFinished() {
+                return this.chunkIndex >= this.chunks.length;
+            }
+            
+            getTypedKana() {
+                if (this.isFinished()) return this.kana;
+                const completedKana = this.chunks.slice(0, this.chunkIndex).map(c => c.kana).join('');
+                const partialChunk = this.chunks[this.chunkIndex];
+                const partialKana = partialChunk ? partialChunk.kana.substring(0, partialChunk.kanaCount) : '';
+                return completedKana + partialKana;
+            }
+        }
+
+        const levelMap = [
+            { level: 'ZZ', kpm: 4000 }, { level: 'ZX', kpm: 3000 }, { level: 'ZS', kpm: 2400 },
+            { level: 'ZA', kpm: 2000 }, { level: 'ZB', kpm: 1714.29 }, { level: 'ZC', kpm: 1500 },
+            { level: 'ZD', kpm: 1333.33 }, { level: 'ZE', kpm: 1200 }, { level: 'ZF', kpm: 1090.91 },
+            { level: 'ZG', kpm: 1000 }, { level: 'ZH', kpm: 923.08 }, { level: 'ZI', kpm: 857.14 },
+            { level: 'ZJ', kpm: 800 }, { level: 'XX', kpm: 750 }, { level: 'XS', kpm: 705.88 },
+            { level: 'XA', kpm: 666.67 }, { level: 'XB', kpm: 631.58 }, { level: 'XC', kpm: 600 },
+            { level: 'XD', kpm: 571.43 }, { level: 'XE', kpm: 545.45 }, { level: 'XF', kpm: 521.74 },
+            { level: 'XG', kpm: 500 }, { level: 'XH', kpm: 480 }, { level: 'XI', kpm: 461.54 },
+            { level: 'XJ', kpm: 444.44 }, { level: 'SS', kpm: 428.57 }, { level: 'SA', kpm: 413.79 },
+            { level: 'SB', kpm: 400 }, { level: 'SC', kpm: 387.10 }, { level: 'SD', kpm: 375 },
+            { level: 'SE', kpm: 363.64 }, { level: 'SF', kpm: 352.94 }, { level: 'SG', kpm: 342.86 },
+            { level: 'SH', kpm: 333.33 }, { level: 'SI', kpm: 324.32 }, { level: 'SJ', kpm: 315.79 },
+            { level: 'A', kpm: 300 }, { level: 'B', kpm: 279.07 }, { level: 'C', kpm: 255.32 },
+            { level: 'D', kpm: 230.77 }, { level: 'E', kpm: 206.90 }, { level: 'F', kpm: 184.62 },
+            { level: 'G', kpm: 164.38 }, { level: 'H', kpm: 146.34 }, { level: 'I', kpm: 130.43 },
+            { level: 'J', kpm: 116.50 }
+        ];
+
+        function getLevel(kpm) {
+            for (const item of levelMap) {
+                if (kpm >= item.kpm) {
+                    return item.level;
+                }
+            }
+            return '-';
+        }
+
+        class TypingTest {
+            constructor(wordsData) {
+                this.allWords = wordsData;
+                this.initGame();
+                this.initElements();
+                this.initEventListeners();
+                this.restart();
+            }
+
+            initGame() {
+                this.words = [];
+                this.wordBoundaries = [];
+                this.fullKanaString = '';
+                this.wordTyper = null;
+                this.correctTypedKeys = 0;
+                this.incorrectChars = 0;
+                this.totalTypedChars = 0;
+                this.startTime = null;
+                this.endTime = null;
+                this.timer = null;
+                this.timeLeft = 60;
+                this.isActive = false;
+                this.isCompleted = false;
+                this.lastScrolledLine = -1;
+                // Multiplayer state
+                this.ws = null;
+                this.isMultiplayer = false;
+                this.gameId = null;
+                this.playerNum = null;
+                this.playerHp = 0;
+                this.opponentHp = 0;
+                this.totalHp = 0;
+            }
+
+            initElements() {
+                this.testArea = document.getElementById('testArea');
+                this.wordDisplay = document.getElementById('wordDisplay');
+                this.wordStream = document.getElementById('wordStream');
+                this.kanaDisplay = document.getElementById('kanaDisplay');
+                this.kanaStream = document.getElementById('kanaStream');
+                this.kpmElement = document.getElementById('kpm');
+                this.kpsElement = document.getElementById('kps');
+                this.accuracyElement = document.getElementById('accuracy');
+                this.timerElement = document.getElementById('timer');
+                this.results = document.getElementById('results');
+                this.wordCountSelect = document.getElementById('wordCountSelect');
+                this.customWordCount = document.getElementById('customWordCount');
+                this.timeLimitSelect = document.getElementById('timeLimitSelect');
+                this.customTimeLimit = document.getElementById('customTimeLimit');
+                this.spaceToggle = document.getElementById('spaceToggle');
+                this.restartBtn = document.getElementById('restartBtn');
+                this.restartBtnResults = document.getElementById('restartBtnResults');
+                this.progressFill = document.getElementById('progressFill');
+
+                // HP Bar elements
+                this.playerHpBarContainer = document.querySelector('.hp-bar-container.self');
+                this.playerHpFill = document.getElementById('playerHpFill');
+                this.playerHpValue = document.getElementById('playerHpValue');
+                this.opponentHpFill = document.getElementById('opponentHpFill');
+                this.opponentHpValue = document.getElementById('opponentHpValue');
+
+                // Multiplayer elements
+                this.onlineMatchBtn = document.getElementById('onlineMatchBtn');
+                this.multiplayerStatus = document.getElementById('multiplayer-status');
+                this.opponentView = document.getElementById('opponent-view');
+                this.opponentProgressFill = document.getElementById('opponentProgressFill');
+                this.opponentKpm = document.getElementById('opponentKpm');
+                this.opponentAccuracy = document.getElementById('opponentAccuracy');
+                this.opponentWordStream = document.getElementById('opponentWordStream');
+            }
+
+            initEventListeners() {
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.testArea.addEventListener('click', () => this.startTest());
+                this.restartBtn.addEventListener('click', () => this.restart());
+                this.restartBtnResults.addEventListener('click', () => this.restart());
+                this.wordCountSelect.addEventListener('change', () => this.restart());
+                this.customWordCount.addEventListener('change', () => this.restart());
+                this.timeLimitSelect.addEventListener('change', () => this.restart());
+                this.customTimeLimit.addEventListener('change', () => this.restart());
+                this.spaceToggle.addEventListener('change', () => this.restart());
+                this.onlineMatchBtn.addEventListener('click', () => this.connectAndFindMatch());
+                // ウィンドウサイズが変わったら行数再計算とスクロール位置の再調整を行う
+                window.addEventListener('resize', () => {
+                    this.calculateLines();
+                    this.updateWordHighlight(); // スクロール位置も再計算
+                });
+
+            }
+
+            connectAndFindMatch() {
+                this.onlineMatchBtn.disabled = true;
+                this.restartBtn.disabled = true;
+                this.multiplayerStatus.textContent = 'Connecting...';
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                this.ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+                this.ws.onopen = () => {
+                    this.multiplayerStatus.textContent = 'Looking for a match...';
+                };
+
+                this.ws.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    switch (message.type) {
+                        case 'waiting':
+                            this.multiplayerStatus.textContent = 'Waiting for an opponent...';
+                            break;
+                        case 'gameStart':
+                            this.gameId = message.gameId;
+                            this.playerNum = message.playerNum; // Assign player number
+                            this.multiplayerStatus.textContent = 'Match found! Game starting...';
+                            this.startMultiplayerGame(message.words, message.initialHp, message.players);
+                            break;
+                        case 'opponentProgress':
+                            this.updateOpponentProgress(message.progress);
+                            break;
+                        case 'hpUpdate':
+                            this.updateHpBars(message.payload.hp);
+                            break;
+                        case 'matchResult':
+                             this.showMultiplayerResults(message.payload.result, message.payload.hp);
+                            break;
+                        case 'opponentFinished':
+                            this.multiplayerStatus.textContent = 'Opponent has finished! Keep going!';
+                            break;
+                    }
+                };
+
+                this.ws.onclose = () => {
+                    this.multiplayerStatus.textContent = 'Disconnected. Refresh to play again.';
+                    this.onlineMatchBtn.disabled = false;
+                    this.restartBtn.disabled = false;
+                    this.playerHpBarContainer.style.display = 'none';
+                    this.opponentView.style.display = 'none';
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket Error:', error);
+                    this.multiplayerStatus.textContent = 'Connection error.';
+                    this.onlineMatchBtn.disabled = false;
+                    this.restartBtn.disabled = false;
+                };
+            }
+
+            getWordCount() {
+                const customCount = parseInt(this.customWordCount.value);
+                if (!isNaN(customCount) && customCount > 0) {
+                    return customCount;
+                }
+                return parseInt(this.wordCountSelect.value);
+            }
+
+            getTimeLimit() {
+                const customTime = parseInt(this.customTimeLimit.value);
+                if (!isNaN(customTime) && customTime >= 0) {
+                    return customTime;
+                }
+                return parseInt(this.timeLimitSelect.value);
+            }
+
+            // --- 修正箇所: handleKeyDownメソッド全体を新しいロジックに置き換え ---
+            handleKeyDown(e) {
+                const target = e.target;
+                if (target.tagName === 'INPUT' || target.tagName === 'SELECT') {
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    this.restart();
+                    return;
+                }
+                if (this.isCompleted) return;
+                if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+                if (e.ctrlKey || e.metaKey) return;
+
+                e.preventDefault();
+
+                if (!this.isActive) {
+                    this.startTest();
+                }
+                
+                if (e.key === 'Backspace') {
+                    return; // このバージョンではバックスペースはサポートしない
+                }
+
+                // スペース必須がオフの場合、スペース入力を無視する
+                const key = e.key.toLowerCase();
+                if (!this.spaceToggle.checked && key === ' ') {
+                     // スペースは単語の区切りではないため、タイピング文字として扱わない
+                     return;
+                }
+                
+                if (key.length > 1 && key !== ' ') return;
+
+                this.totalTypedChars++;
+
+                // --- 新しいロジック START ---
+                // 1. キー入力前の状態を記録する
+                const prevTypedKana = this.wordTyper.getTypedKana();
+                // スペース必須でない場合は wordBoundaries を使わないため prevBoundary は不要
+
+                // 2. キー入力を処理する
+                const result = this.wordTyper.update(key);
+
+                if (result.isCorrect) {
+                    this.correctTypedKeys++;
+                    // *** HPシステム: 正解時にサーバーに通知 ***
+                    if (this.isMultiplayer && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.ws.send(JSON.stringify({ type: 'charTyped', payload: { isCorrect: true } }));
+                    }
+                } else {
+                    this.incorrectChars++;
+                }
+
+                // 3. キー入力後の状態を取得する
+                const currentTypedKana = this.wordTyper.getTypedKana();
+                
+                // 4. スペース入力を必須にする場合のみ、単語完了後のスペース自動入力/強制を処理する
+                if (this.spaceToggle.checked) {
+                    // 4.1. タイプ前後で文字が進んでいる場合のみ、単語境界をチェックする
+                    if (currentTypedKana.length > prevTypedKana.length) {
+                        const prevBoundary = this.wordBoundaries.find(b => b.endIndex === prevTypedKana.length);
+                        const currentBoundary = this.wordBoundaries.find(b => b.endIndex === currentTypedKana.length);
+
+                        // 4.2. 以前は境界ではなく、現在が境界である場合（＝単語を打ち終わった瞬間）
+                        if (!prevBoundary && currentBoundary) {
+                            // 単語が完了してもスペースは自動入力しない
+                        }
+                    }
+                }
+                // --- 新しいロジック END ---
+
+                if (this.isMultiplayer && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const elapsedSeconds = this.startTime ? (Date.now() - this.startTime) / 1000 : 1;
+                    const kps = this.correctTypedKeys / elapsedSeconds;
+                    const kpm = kps * 60;
+                    const accuracy = this.totalTypedChars > 0 ? Math.round((this.correctTypedKeys / this.totalTypedChars) * 100) : 100;
+
+                    const progress = {
+                        typedLength: this.wordTyper.getTypedKana().length,
+                        kpm: Math.round(kpm),
+                        accuracy: Math.max(0, accuracy)
+                    };
+                    this.ws.send(JSON.stringify({
+                        type: 'progress',
+                        gameId: this.gameId,
+                        progress: progress
+                    }));
+                }
+
+                this.updateScrolling();
+                this.updateWordHighlight();
+
+                if (this.wordTyper.isFinished()) {
+                    this.completeTest();
+                    return;
+                }
+                this.updateStats();
+            }
+
+            // --- generateWords の置換版 ---
+            generateWords() {
+                const wordCount = this.getWordCount();
+                this.words = this.allWords.sort(() => 0.5 - Math.random()).slice(0, wordCount);
+
+                this.wordBoundaries = [];
+                let currentKanaLength = 0;
+                const isSpaceRequired = this.spaceToggle.checked;
+
+                const kanaParts = this.words.map(w => w.kana.join(''));
+                
+                // スペース入力を必須にするかどうかで fullKanaString の作成方法を変える
+                this.fullKanaString = isSpaceRequired ? kanaParts.join('　') : kanaParts.join('');
+
+                // クリア
+                this.wordStream.innerHTML = '';
+
+                // 一旦すべての単語を追加してから行レイアウト（折り返し）を評価する
+                this.words.forEach((word, index) => {
+                    const wordEl = document.createElement('span');
+                    wordEl.id = `word-span-${index}`;
+                    wordEl.className = 'word';
+                    wordEl.textContent = word.text;
+                    this.wordStream.appendChild(wordEl);
+                    
+                    // --- 修正箇所: ここから ---
+                    // 最後の単語でなければ、スペース必須の有無に関わらず、
+                    // DOM上での視覚的な区切りとしてスペース文字（createTextNode(' ')）を追加する
+                    if (index < this.words.length - 1) {
+                         const space = document.createTextNode(' ');
+                         this.wordStream.appendChild(space);
+                    }
+                    // --- 修正箇所: ここまで ---
+
+                    const kanaLength = kanaParts[index].length;
+                    this.wordBoundaries.push({
+                        startIndex: currentKanaLength,
+                        endIndex: currentKanaLength + kanaLength,
+                        element: wordEl
+                    });
+                    
+                    // fullKanaString に含まれるスペース分を加算（これはスペース必須の場合のみ）
+                    currentKanaLength += kanaLength + (isSpaceRequired ? 1 : 0);
+                });
+
+                // WordTyper を作る前にレイアウト情報を確定する
+                this.calculateLines();
+
+                this.wordTyper = new WordTyper(this.fullKanaString);
+
+                this.updateScrolling();
+                this.updateWordHighlight();
+            }
+
+            // --- calculateLines の置換版 ---
+            calculateLines() {
+                // lineBreakWordIndices を行の開始単語インデックスで作る
+                this.lineBreakWordIndices = [0];
+                const wordSpans = Array.from(this.wordStream.querySelectorAll('.word'));
+                if (wordSpans.length === 0) return;
+
+                let lastOffsetTop = wordSpans[0].offsetTop;
+                for (let i = 1; i < wordSpans.length; i++) {
+                    const t = wordSpans[i].offsetTop;
+                    // offsetTop が変化したら改行が発生したとみなす
+                    if (t > lastOffsetTop + 1) { // 微小差を吸収
+                        this.lineBreakWordIndices.push(i);
+                        lastOffsetTop = t;
+                    }
+                }
+                // 最後の行も意識しておく（行数を容易に算出するため）
+                // lineBreakWordIndices 配列は各行の先頭 word index を保持する
+            }
+
+            updateWordHighlight() {
+                if (!this.wordTyper || !this.wordBoundaries || this.wordBoundaries.length === 0) return;
+
+                const typedLength = this.wordTyper.getTypedKana().length;
+                let currentWordIndex = -1;
+
+                this.wordBoundaries.forEach((boundary, index) => {
+                    boundary.element.classList.remove('current');
+                    if (typedLength >= boundary.startIndex && typedLength < boundary.endIndex) {
+                        boundary.element.classList.add('current');
+                        currentWordIndex = index;
+                    }
+                });
+
+                // Handle case where typing is complete
+                if (currentWordIndex === -1 && typedLength >= this.fullKanaString.length) {
+                    const lastBoundary = this.wordBoundaries[this.wordBoundaries.length - 1];
+                    if(lastBoundary) {
+                       lastBoundary.element.classList.add('current');
+                       currentWordIndex = this.wordBoundaries.length - 1;
+                    }
+                }
+
+                if (currentWordIndex > -1) {
+                    const currentLine = this.lineBreakWordIndices.findLastIndex(lineStartIndex => currentWordIndex >= lineStartIndex);
+
+                    // We want to scroll so the current line is the second line in the view.
+                    // So, the line that should be at the top is the one before the current line.
+                    let scrollToLineIndex = Math.max(0, currentLine - 1);
+
+                    const firstWordIndexOfTargetLine = this.lineBreakWordIndices[scrollToLineIndex];
+                    if (firstWordIndexOfTargetLine !== undefined) {
+                        const firstWordEl = this.wordBoundaries[firstWordIndexOfTargetLine].element;
+                        
+                        // Calculate scroll amount based on the target element's position relative to its parent stream.
+                        const scrollAmount = firstWordEl.offsetTop - this.wordBoundaries[0].element.offsetTop;
+                        
+                        this.wordStream.style.transform = `translateY(-${scrollAmount}px)`;
+                    }
+
+                } else {
+                    // If no current word, reset scroll
+                     this.wordStream.style.transform = `translateY(0px)`;
+                }
+            }
+            // --- 置換する関数終了 ---
+
+
+            updateScrolling() {
+                if (!this.wordTyper) return;
+
+                const typed = this.wordTyper.getTypedKana();
+                const typedLength = typed.length;
+                
+                let untypedForDisplay;
+                let typedForDisplay;
+
+                if (this.spaceToggle.checked) {
+                    untypedForDisplay = this.fullKanaString.substring(typedLength);
+                    typedForDisplay = typed;
+                } else {
+                    // Rebuild the untyped part with spaces for display
+                    const untyped_parts = [];
+                    for (const boundary of this.wordBoundaries) {
+                        if (boundary.endIndex <= typedLength) {
+                            continue; // Already typed
+                        }
+                        
+                        const word = this.fullKanaString.substring(boundary.startIndex, boundary.endIndex);
+
+                        if (boundary.startIndex < typedLength) {
+                            // Partially typed word, take the untyped part
+                            untyped_parts.push(word.substring(typedLength - boundary.startIndex));
+                        } else {
+                            // Fully untyped word
+                            untyped_parts.push(word);
+                        }
+                    }
+                    untypedForDisplay = untyped_parts.join(' ');
+
+                    // Rebuild the typed part with spaces for display
+                    const typed_parts = [];
+                    for (const boundary of this.wordBoundaries) {
+                        if (boundary.startIndex >= typedLength) {
+                            break; // Stop when we reach untyped words
+                        }
+                        
+                        const word = this.fullKanaString.substring(boundary.startIndex, boundary.endIndex);
+
+                        if (boundary.endIndex > typedLength) {
+                            // Partially typed word
+                            typed_parts.push(word.substring(0, typedLength - boundary.startIndex));
+                        } else {
+                            // Fully typed word
+                            typed_parts.push(word);
+                        }
+                    }
+                    typedForDisplay = typed_parts.join(' ');
+
+                    // Add a trailing space to the typed part if a word was just completed
+                    const atWordBoundary = this.wordBoundaries.some(b => b.endIndex === typedLength);
+                    const isNotTheEnd = typedLength < this.fullKanaString.length;
+                    if (atWordBoundary && isNotTheEnd) {
+                        typedForDisplay += ' ';
+                    }
+                }
+
+                this.kanaStream.innerHTML = 
+                    `<span class="typed">${typedForDisplay}</span>` +
+                    `<span id="cursor"></span>` +
+                    `<span class="untyped">${untypedForDisplay}</span>`;
+
+                const cursorEl = document.getElementById('cursor');
+                if (cursorEl) {
+                    const scrollOffset = cursorEl.offsetLeft;
+                    this.kanaStream.style.transform = `translateX(-${scrollOffset}px)`;
+                }
+                this.updateProgress();
+            }
+
+            startTest() {
+                if (this.isActive || this.isCompleted) return;
+                
+                this.isActive = true;
+                this.startTime = Date.now();
+                this.wordDisplay.classList.add('active');
+                
+                const timeLimit = this.getTimeLimit();
+                if (timeLimit > 0) {
+                    this.timeLeft = timeLimit;
+                    this.timerElement.textContent = this.timeLeft;
+                    this.startTimer();
+                }
+            }
+
+            startTimer() {
+                if (this.timer) clearInterval(this.timer);
+                this.timer = setInterval(() => {
+                    this.timeLeft--;
+                    this.timerElement.textContent = this.timeLeft;
+                    this.updateStats();
+                    if (this.timeLeft <= 0) {
+                        this.completeTest();
+                    }
+                }, 1000);
+            }
+
+            completeTest() {
+                this.isActive = false;
+                this.isCompleted = true;
+                this.endTime = Date.now();
+                if (this.timer) clearInterval(this.timer);
+                this.wordDisplay.classList.remove('active');
+                this.showResults();
+            }
+
+            updateStats() {
+                const elapsedSeconds = this.startTime ? (Date.now() - this.startTime) / 1000 : 0;
+                if (elapsedSeconds === 0) return;
+
+                const kps = this.correctTypedKeys / elapsedSeconds;
+                const kpm = kps * 60;
+                const accuracy = this.totalTypedChars > 0 
+                    ? Math.round((this.correctTypedKeys / this.totalTypedChars) * 100)
+                    : 100;
+
+                this.kpmElement.textContent = Math.round(kpm);
+                this.kpsElement.textContent = kps.toFixed(2);
+                this.accuracyElement.textContent = `${Math.max(0, accuracy)}%`;
+            }
+
+            updateProgress() {
+                if (!this.wordTyper) return;
+                const progress = (this.wordTyper.getTypedKana().length / this.fullKanaString.length) * 100;
+                this.progressFill.style.width = `${progress}%`;
+            }
+
+            showResults() {
+                // For multiplayer, this is handled by showMultiplayerResults
+                if (this.isMultiplayer) return;
+
+                const elapsedSeconds = (this.endTime - this.startTime) / 1000;
+                const kps = elapsedSeconds > 0 ? this.correctTypedKeys / elapsedSeconds : 0;
+                const kpm = kps * 60;
+                const accuracy = this.totalTypedChars > 0 
+                    ? Math.round((this.correctTypedKeys / this.totalTypedChars) * 100)
+                    : 100;
+                const level = getLevel(kpm);
+
+                document.getElementById('finalLevel').textContent = level;
+                document.getElementById('finalKPM').textContent = Math.round(kpm);
+                document.getElementById('finalKPS').textContent = kps.toFixed(2);
+                document.getElementById('finalAccuracy').textContent = `${Math.max(0, accuracy)}%`;
+                document.getElementById('finalTime').textContent = `${Math.round(elapsedSeconds)}s`;
+
+                this.results.classList.add('show');
+            }
+            
+            showMultiplayerResults(result, finalHp) {
+                this.isCompleted = true;
+                this.isActive = false;
+                if (this.timer) clearInterval(this.timer);
+
+                this.updateHpBars(finalHp);
+                
+                const resultsContent = this.results.querySelector('.results-content');
+                const resultText = result.isWinner ? '勝利!' : '敗北...';
+                resultsContent.querySelector('h2').textContent = resultText;
+                
+                // Hide normal stats grid and show a simpler message
+                resultsContent.querySelector('.results-grid').style.display = 'none';
+
+                this.results.classList.add('show');
+            }
+
+            restart() {
+                if (this.timer) clearInterval(this.timer);
+                this.initGame();
+                
+                const timeLimit = this.getTimeLimit();
+                this.timeLeft = timeLimit > 0 ? timeLimit : 0;
+
+                this.wordDisplay.classList.remove('active');
+                this.results.classList.remove('show');
+                this.progressFill.style.width = '0%';
+                this.timerElement.textContent = timeLimit > 0 ? timeLimit : '∞';
+                
+                this.generateWords();
+                this.updateStats();
+
+                 // Hide HP bars in single player
+                this.playerHpBarContainer.style.display = 'none';
+                this.opponentView.style.display = 'none';
+
+                // Restore results content for single player
+                this.results.querySelector('.results-content h2').textContent = '結果';
+                this.results.querySelector('.results-grid').style.display = 'grid';
+            }
+
+            startMultiplayerGame(words, initialHp, players) {
+                if (this.timer) clearInterval(this.timer);
+                this.initGame();
+                this.isMultiplayer = true;
+                this.totalHp = initialHp;
+                this.playerHp = initialHp;
+                this.opponentHp = initialHp;
+
+                // Show HP bars and opponent view
+                this.playerHpBarContainer.style.display = 'flex';
+                this.opponentView.style.display = 'block';
+                document.querySelector('.controls').style.display = 'none'; // Hide game setup controls
+
+                this.updateHpBars({ 1: initialHp, 2: initialHp });
+
+                this.words = words;
+
+                this.wordBoundaries = [];
+                let currentKanaLength = 0;
+                const isSpaceRequired = true; // Force space required for multiplayer
+
+                const kanaParts = this.words.map(w => w.kana.join(''));
+                this.fullKanaString = kanaParts.join('　');
+
+                this.wordStream.innerHTML = '';
+                this.opponentWordStream.innerHTML = '';
+
+                this.words.forEach((word, index) => {
+                    const wordEl = document.createElement('span');
+                    wordEl.className = 'word';
+                    wordEl.textContent = word.text;
+                    this.wordStream.appendChild(wordEl);
+
+                    const opponentWordEl = document.createElement('span');
+                    opponentWordEl.className = 'word';
+                    opponentWordEl.textContent = word.text;
+                    this.opponentWordStream.appendChild(opponentWordEl);
+
+                    if (index < this.words.length - 1) {
+                        const space = document.createTextNode(' ');
+                        this.wordStream.appendChild(space.cloneNode());
+                        this.opponentWordStream.appendChild(space.cloneNode());
+                    }
+
+                    const kanaLength = kanaParts[index].length;
+                    this.wordBoundaries.push({
+                        startIndex: currentKanaLength,
+                        endIndex: currentKanaLength + kanaLength,
+                        playerElement: wordEl,
+                        opponentElement: opponentWordEl,
+                        element: wordEl // Keep 'element' for shared logic
+                    });
+                    currentKanaLength += kanaLength + 1;
+                });
+
+                this.calculateLines();
+                this.wordTyper = new WordTyper(this.fullKanaString);
+                this.adjustWordDisplayHeight();
+                this.updateScrolling();
+                this.updateWordHighlight();
+
+                this.isCompleted = false;
+                this.isActive = false; // Wait for first keypress to start
+            }
+
+            updateHpBars(hpData) {
+                if (!this.isMultiplayer || !this.playerNum) return;
+
+                const opponentNum = this.playerNum === 1 ? 2 : 1;
+                const newPlayerHp = hpData[this.playerNum];
+                const newOpponentHp = hpData[opponentNum];
+
+                // --- Damage Popup & Flash Animation ---
+                const playerHpBar = this.playerHpFill.closest('.hp-bar');
+                const opponentHpBar = this.opponentHpFill.closest('.hp-bar');
+
+                // Player damage
+                if (newPlayerHp < this.playerHp) {
+                    const damage = this.playerHp - newPlayerHp;
+                    this.createDamagePopup(playerHpBar, damage);
+                    playerHpBar.classList.remove('damage-flash');
+                    void playerHpBar.offsetWidth; // Trigger reflow
+                    playerHpBar.classList.add('damage-flash');
+                }
+                // Opponent damage
+                if (newOpponentHp < this.opponentHp) {
+                    const damage = this.opponentHp - newOpponentHp;
+                    this.createDamagePopup(opponentHpBar, damage);
+                    opponentHpBar.classList.remove('damage-flash');
+                    void opponentHpBar.offsetWidth; // Trigger reflow
+                    opponentHpBar.classList.add('damage-flash');
+                }
+                
+                this.playerHp = newPlayerHp;
+                this.opponentHp = newOpponentHp;
+
+                // --- Update HP Fill & Color ---
+                const updateBar = (fillEl, valueEl, currentHp) => {
+                    const percentage = (currentHp / this.totalHp) * 100;
+                    fillEl.style.width = `${percentage}%`;
+                    valueEl.textContent = `${Math.round(currentHp)} / ${this.totalHp}`;
+                    
+                    fillEl.classList.remove('low-hp', 'danger-hp');
+                    if (percentage < 25) {
+                        fillEl.classList.add('danger-hp');
+                    } else if (percentage < 50) {
+                        fillEl.classList.add('low-hp');
+                    }
+                };
+
+                updateBar(this.playerHpFill, this.playerHpValue, this.playerHp);
+                updateBar(this.opponentHpFill, this.opponentHpValue, this.opponentHp);
+            }
+
+            createDamagePopup(targetBar, damageAmount) {
+                const popup = document.createElement('div');
+                popup.className = 'damage-popup';
+                popup.textContent = `-${Math.round(damageAmount)}`;
+                targetBar.appendChild(popup);
+                setTimeout(() => {
+                    popup.remove();
+                }, 1000); // Match animation duration
+            }
+
+            updateOpponentProgress(progress) {
+                if (!progress) return;
+                const progressPercent = (progress.typedLength / this.fullKanaString.length) * 100;
+                this.opponentProgressFill.style.width = `${progressPercent}%`;
+                this.opponentKpm.textContent = progress.kpm;
+                this.opponentAccuracy.textContent = `${progress.accuracy}%`;
+
+                // Opponent word highlight
+                this.wordBoundaries.forEach(b => b.opponentElement.classList.remove('current'));
+                let opponentWordIndex = this.wordBoundaries.findIndex(b => progress.typedLength >= b.startIndex && progress.typedLength < b.endIndex);
+                if (opponentWordIndex > -1) {
+                    this.wordBoundaries[opponentWordIndex].opponentElement.classList.add('current');
+                }
+            }
+        }
+
+        function populateLevelChart() {
+            const tableBody = document.querySelector('#levelTable tbody');
+            if (!tableBody) return;
+
+            let tableContent = '';
+            levelMap.forEach(item => {
+                tableContent += `
+                    <tr>
+                        <td>${item.level}</td>
+                        <td>${item.kpm >= 1000 ? Math.round(item.kpm) : item.kpm.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            tableBody.innerHTML = tableContent;
+        }
+
+        async function init() {
+            try {
+                const response = await fetch('khjy.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                new TypingTest(data.list);
+            } catch (error) {
+                console.error("Could not load word list:", error);
+                document.getElementById('wordDisplay').textContent = '単語リストの読み込みに失敗しました。';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            populateLevelChart();
+        });
+    })();
+    </script>
+</body>
+</html>

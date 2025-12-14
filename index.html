@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語タイピング対戦</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #323437; color: #d1d0c5; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        .hidden { display: none !important; }
+        .test-area { max-width: 800px; width: 100%; margin-bottom: 40px; cursor: text; }
+        .word-display { background: #2c2e31; padding: 30px; border-radius: 8px; font-size: 1.8rem; line-height: 2.2; height: calc((1.8rem * 2.2 * 3) + 60px); border: 2px solid transparent; overflow-y: hidden; position: relative; scroll-behavior: smooth; }
+        #wordStream { position: relative; width: 100%; transition: transform 0.3s ease-in-out; white-space: normal; word-break: break-word; display: block; }
+        .word { display: inline-block; margin-right: 1rem; margin-bottom: 0.5rem; }
+        .word.current { color: #e2b714; }
+        .word.correct { color: #646669; }
+        .kana-display { 
+            font-size: 1.4rem; 
+            color: #d1d0c5; 
+            margin-top: 15px; 
+            height: 2.5em; 
+            text-align: center; 
+            letter-spacing: 2px; 
+            background: #2c2e31; 
+            padding: 10px 0; 
+            border-radius: 4px; 
+            overflow: hidden; 
+            position: relative; 
+        }
+
+        .kana-stream { 
+            position: absolute; 
+            top: 10px; 
+            left: 50%; 
+            white-space: nowrap; 
+            transition: transform 0.1s ease-out; 
+        }
+        .kana-stream .typed { opacity: 0.5; }
+        .kana-stream .untyped { color: #d1d0c5; }
+        
+        #cursor { 
+            display: inline-block; 
+            background-color: #e2b714; 
+            width: 2px; 
+            height: 1.4rem; 
+            vertical-align: middle; 
+            animation: blink 1s infinite; 
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        .stats { display: flex; justify-content: center; gap: 40px; margin-top: 20px; }
+        .stat { text-align: center; min-width: 80px; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #e2b714; display: block; }
+        .stat-label { font-size: 0.9rem; color: #646669; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .modal-content { background: #2c2e31; padding: 40px; border-radius: 8px; text-align: center; width: 90%; max-width: 600px; }
+        #entryScreen, #lobbyScreen { display: flex; background: #2c2e31; padding: 30px; border-radius: 8px; text-align: center; width: 90%; max-width: 500px; flex-direction: column; align-items: center; }
+        .input-group { margin-bottom: 15px; width: 100%; }
+        .input-group label { display: block; margin-bottom: 8px; color: #646669; text-align: left; }
+        .input-group input { width: 100%; padding: 10px; font-size: 1rem; background: #323437; border: 1px solid #646669; color: #d1d0c5; border-radius: 4px; }
+        .checkbox-group { display: flex; align-items: center; justify-content: center; margin: 15px 0; }
+        #roomListContainer { margin-top: 20px; border-top: 1px solid #646669; padding-top: 20px; width: 100%; }
+        #roomList { max-height: 150px; overflow-y: auto; border: 1px solid #646669; border-radius: 4px; padding: 5px; margin-bottom: 10px; }
+        .room-item { padding: 10px; cursor: pointer; border-radius: 3px; }
+        .room-item:hover { background-color: #323437; }
+        #gameStatus { position: fixed; top: 20px; right: 20px; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 5px; z-index: 101; }
+        #lobbyScreen .player-names { margin-bottom: 20px; font-size: 1.2rem; }
+        #lobbyTeams { display: flex; justify-content: space-around; width: 100%; margin-bottom: 20px; }
+        .team-lobby-column { width: 45%; text-align: center; }
+        .team-player-list { border: 1px solid #646669; border-radius: 4px; padding: 10px; min-height: 100px; }
+        .player-name-item { padding: 5px; border-radius: 3px; }
+        .is-host-view .player-name-item { cursor: pointer; }
+        #lobbyScreen { max-width: 1100px; width: 95%; }
+        #lobby-layout-container {
+            display: flex;
+            width: 100%;
+            gap: 30px;
+        }
+        #lobby-left-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #lobby-right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .setting-card {
+            background: #323437;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        #lobbyTeams {
+            display: flex;
+            gap: 20px;
+        }
+        .team-lobby-column {
+            flex: 1;
+        }
+        .team-player-list {
+            min-height: 120px;
+        }
+
+        .setting-card .input-group {
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        .setting-card .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #646669;
+        }
+        .setting-card .input-group input {
+            width: 100%;
+            padding: 8px;
+            font-size: 1rem;
+            background: #323437;
+            border: 1px solid #646669;
+            color: #d1d0c5;
+            border-radius: 4px;
+        }
+
+        .game-settings-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding-top: 10px;
+        }
+
+        #kpmSettings {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            padding-top: 10px;
+        }
+        #kpmSettings > div {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #kpmSettings input { width: 70px; }
+        .lobby-action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: auto;
+            padding-top: 20px;
+        }
+        .lobby-action-buttons .primary-btn,
+        .lobby-action-buttons .secondary-btn {
+            flex: 1;
+        }
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: #323437;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        #chat-messages {
+            flex-grow: 1;
+            background: #2c2e31;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        #chat-form {
+            margin-top: 15px;
+        }
+
+        .is-host-view .player-name-item:hover { background-color: #323437; }
+
+        #lobbyScreen button:disabled { background: #646669; cursor: not-allowed; }
+        #countdown { font-size: 8rem; color: #e2b714; font-weight: bold; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .primary-btn, .secondary-btn { font-weight: bold; padding: 12px 24px; font-size: 1.1rem; border: none; border-radius: 4px; cursor: pointer; }
+        .primary-btn { background: #e2b714; color: #323437; }
+        .secondary-btn { background: #646669; color: #d1d0c5; }
+        #game-arena { width: 100%; max-width: 900px; height: 300px; background-color: #282a2d; border: 2px solid #646669; border-radius: 8px; position: relative; margin-bottom: 30px; overflow: hidden; padding: 10px; }
+        .team-area { display: flex; flex-direction: column; align-items: center; justify-content: center; position: absolute; width: 200px; top: 10px; bottom: 10px; }
+        #team-1-area { left: 50px; }
+        #team-2-area { right: 50px; }
+        .team-sprite { width: 120px; height: 120px; border-radius: 12px; margin-bottom: 15px; transition: transform 0.1s ease-out; }
+        .team-sprite.team1 { background-color: #4c9e4a; }
+        .team-sprite.team2 { background-color: #c94e4e; }
+        .player-list { width: 100%; text-align: center; color: #d1d0c5; font-size: 0.9rem; }
+        .team-hp-bar { position: absolute; bottom: 10px; width: 100%; height: 25px; background: #2c2e31; border: 2px solid #646669; border-radius: 6px; }
+        .team-hp-fill { height: 100%; transition: width 0.3s ease-in-out; }
+        .team-hp-value { position: absolute; width: 100%; text-align: center; top: 50%; transform: translateY(-50%); color: #fff; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+        #team-1-area .team-hp-fill { background-color: #4c9e4a; }
+        #team-2-area .team-hp-fill { background-color: #c94e4e; }
+        .team-sprite.hit { animation: team-hit 0.2s ease-out; }
+        @keyframes team-hit { 50% { transform: scale(1.05); } }
+
+        @keyframes defeat-animation {
+            0% { transform: translateX(0); filter: grayscale(0) brightness(1); }
+            10% { transform: translateX(-10px); }
+            20% { transform: translateX(10px); }
+            30% { transform: translateX(-10px); filter: grayscale(1) brightness(0.5) sepia(1); }
+            40% { transform: translateX(10px); }
+            50% { transform: translateX(0); opacity: 1; }
+            100% { transform: translateY(100px) rotate(15deg); opacity: 0; filter: grayscale(1) brightness(0.5) sepia(1); }
+        }
+
+        .team-sprite.defeated {
+            animation: defeat-animation 2s forwards ease-in-out;
+            animation-delay: 0.5s;
+        }
+
+        .bullet { position: absolute; width: 15px; height: 15px; border-radius: 50%; opacity: 0; z-index: 10; display: flex; justify-content: center; align-items: center; }
+        .bullet .shooter-name { position: absolute; top: -18px; font-size: 0.7rem; color: white; white-space: nowrap; background: rgba(0,0,0,0.5); padding: 1px 4px; border-radius: 3px; }
+        #chat-container { margin-top: 20px; width: 100%; border-top: 1px solid #646669; padding-top: 20px; }
+        #chat-messages { height: 150px; overflow-y: auto; border: 1px solid #646669; padding: 10px; margin-bottom: 10px; text-align: left; }
+        #chat-form { display: flex; }
+        #chat-input { flex-grow: 1; margin-right: 10px; }
+        
+        #victory-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            color: #e2b714;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 200;
+        }
+        #victory-text.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="victory-text"></div>
+    <div id="entryScreen">
+        <h2>タイピング対戦</h2>
+        <div class="input-group"><label for="playerNameInput">名前</label><input type="text" id="playerNameInput" placeholder="名前を入力"></div>
+        <div class="input-group"><label for="levelInput">目標KPM</label><input type="number" id="levelInput" value="300"></div>
+        <div class="input-group"><label for="roomNameInput">部屋名</label><input type="text" id="roomNameInput" placeholder="新しい部屋名 or 選択"></div>
+        <div class="input-group"><label for="roomPasswordInput">部屋パスワード (任意)</label><input type="password" id="roomPasswordInput" placeholder="ホスト権限の取得や部屋の削除に使用"></div>
+        <div class="checkbox-group"><input type="checkbox" id="privateRoomCheckbox"><label for="privateRoomCheckbox">プライベート</label></div>
+        <button id="joinRoomBtn" class="primary-btn">部屋に入る</button>
+        <div id="roomListContainer">
+            <h3>参加可能な部屋</h3>
+            <div id="roomList"></div>
+            <button id="refreshRoomsBtn" class="secondary-btn" style="margin-top:5px;">更新</button>
+        </div>
+    </div>
+    <div id="lobbyScreen" class="hidden">
+        <h2>ゲーム設定</h2>
+        <div id="lobby-layout-container">
+            <div id="lobby-left-panel">
+                <div class="setting-card">
+                    <h3>チーム編成</h3>
+                    <div id="lobbyTeams">
+                        <div class="team-lobby-column">
+                            <h4>Team 1</h4>
+                            <div id="lobby-team-1" class="team-player-list"></div>
+                        </div>
+                        <div class="team-lobby-column">
+                            <h4>Team 2</h4>
+                            <div id="lobby-team-2" class="team-player-list"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="setting-card">
+                    <h3>ゲーム設定</h3>
+                    <div class="game-settings-grid">
+                        <div class="input-group">
+                            <label for="timeSettingInput">時間(秒):</label>
+                            <input type="number" id="timeSettingInput" value="60" min="10">
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="spaceToggleCheckbox" checked>
+                            <label for="spaceToggleCheckbox">スペース必須</label>
+                        </div>
+                    </div>
+                </div>
+                <div id="kpm-setting-card" class="setting-card">
+                    <h3>KPM 設定</h3>
+                    <div id="kpmSettings"></div>
+                </div>
+                <div id="host-request-section" class="setting-card hidden">
+                    <h3>ホスト権限の取得</h3>
+                    <div class="input-group">
+                        <label for="hostRequestPassword">部屋のパスワード</label>
+                        <input type="password" id="hostRequestPassword" placeholder="設定したパスワードを入力">
+                    </div>
+                    <button id="requestHostBtn" class="secondary-btn" style="width: 100%;">権限を取得する</button>
+                </div>
+                <div class="lobby-action-buttons">
+                    <button id="startGameBtn" class="primary-btn">ゲーム開始</button>
+                    <button id="leaveLobbyBtn" class="secondary-btn">部屋を退出</button>
+                </div>
+                <div id="room-deletion-section" class="setting-card" style="margin-top: auto;">
+                    <h3>部屋の削除</h3>
+                    <div class="input-group">
+                        <label for="deleteRoomPassword">削除パスワード</label>
+                        <input type="password" id="deleteRoomPassword" placeholder="設定したパスワードを入力">
+                    </div>
+                    <button id="deleteRoomBtn" class="secondary-btn" style="background-color: #c94e4e; width: 100%;">この部屋を削除する</button>
+                </div>
+            </div>
+            <div id="lobby-right-panel">
+                <div id="chat-container">
+                    <h3>チャット</h3>
+                    <div id="chat-messages"></div>
+                    <form id="chat-form">
+                        <input type="text" id="chat-input" placeholder="メッセージを入力..." autocomplete="off">
+                        <button type="submit" class="secondary-btn">送信</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="countdownScreen" class="modal-overlay hidden"><div id="countdown"></div></div>
+    <div id="results" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 id="resultsTitle"></h2>
+            <div class="results-grid"></div>
+            <div class="results-buttons">
+                <button id="returnToLobbyBtn" class="primary-btn">ロビーに戻る</button>
+                <button id="leaveRoomBtn" class="secondary-btn">部屋を退出する</button>
+            </div>
+        </div>
+    </div>
+    <div id="mainContent" class="hidden">
+        <div id="game-arena">
+            <div id="team-1-area" class="team-area">
+                <div class="team-sprite team1"></div>
+                <div class="player-list"></div>
+                <div class="team-hp-bar">
+                    <div class="team-hp-fill"></div>
+                    <div class="team-hp-value"></div>
+                </div>
+            </div>
+            <div id="team-2-area" class="team-area">
+                <div class="team-sprite team2"></div>
+                <div class="player-list"></div>
+                <div class="team-hp-bar">
+                    <div class="team-hp-fill"></div>
+                    <div class="team-hp-value"></div>
+                </div>
+            </div>
+        </div>
+        <div class="test-area"><div id="wordDisplay" class="word-display"><div id="wordStream"></div></div><div id="kanaDisplay" class="kana-display"><div id="kanaStream" class="kana-stream"></div></div></div>
+        <div class="stats">
+            <div class="stat"><span id="kpm" class="stat-value">0</span><span class="stat-label">KPM</span></div>
+            <div class="stat"><span id="kps" class="stat-value">0.00</span><span class="stat-label">KPS</span></div>
+            <div class="stat"><span id="accuracy" class="stat-value">100%</span><span class="stat-label">正確性</span></div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+    const screens = { entry: document.getElementById('entryScreen'), lobby: document.getElementById('lobbyScreen'), countdown: document.getElementById('countdownScreen'), main: document.getElementById('mainContent'), results: document.getElementById('results') };
+    const showScreen = (screenName) => { Object.values(screens).forEach(s => s && s.classList.add('hidden')); if (screens[screenName]) screens[screenName].classList.remove('hidden'); };
+    const send = (type, payload) => { ws.send(JSON.stringify({ type, payload })); };
+    class MultiplayerTypingGame {
+        constructor() {
+            this.state = { clientId: null, players: {}, teams: {}, isHost: false, gameActive: false, words: [], wordBoundaries: [], fullKanaString: '', wordTyper: null, correctTypedKeys: 0, totalTypedChars: 0, startTime: null, settings: {}, hp: {}, maxHp: {}, };
+            this.elements = { gameArena: document.getElementById('game-arena'), wordDisplay: document.getElementById('wordDisplay'), wordStream: document.getElementById('wordStream'), kanaStream: document.getElementById('kanaStream'), kpmEl: document.getElementById('kpm'), kpsEl: document.getElementById('kps'), accuracyEl: document.getElementById('accuracy'), };
+            document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        }
+        startGame(words, settings) { this.state.words = words; this.state.settings = settings; this.resetGameState(); this.generateWords(); this.startCountdown(); }
+        startCountdown() { let count = 3; document.getElementById('countdown').textContent = count; showScreen('main'); screens.countdown.classList.remove('hidden'); const interval = setInterval(() => { count--; if (count > 0) { document.getElementById('countdown').textContent = count; } else { clearInterval(interval); screens.countdown.classList.add('hidden'); this.startTest(); } }, 1000); }
+        startTest() { this.state.gameActive = true; this.state.startTime = Date.now(); }
+        finishGame() { if (!this.state.gameActive) return; this.state.gameActive = false; const finishTime = (Date.now() - this.state.startTime) / 1000; const kps = finishTime > 0 ? this.state.correctTypedKeys / finishTime : 0; const kpm = kps * 60; const accuracy = this.state.totalTypedChars > 0 ? (this.state.correctTypedKeys / this.state.totalTypedChars) * 100 : 100; const finalStatsGrid = document.querySelector('#results .results-grid'); if(finalStatsGrid) { finalStatsGrid.innerHTML = `<div class="stat"><span class="stat-value">${Math.round(kpm)}</span><span class="stat-label">KPM</span></div><div class="stat"><span class="stat-value">${accuracy.toFixed(1)}%</span><span class="stat-label">正確性</span></div>`; } }
+        resetGameState() { this.state.gameActive = false; this.state.wordTyper = null; this.state.correctTypedKeys = 0; this.state.totalTypedChars = 0; this.state.startTime = null; }
+        generateWords() { const isSpaceRequired = this.state.settings.spaceToggle; const kanaParts = this.state.words.map(w => w.kana.join('')); this.state.fullKanaString = isSpaceRequired ? kanaParts.join('　') : kanaParts.join(''); this.state.wordTyper = new WordTyper(this.state.fullKanaString); this.elements.wordStream.innerHTML = ''; this.state.wordBoundaries = []; let currentKanaLength = 0; this.state.words.forEach((word, index) => { const wordEl = document.createElement('span'); wordEl.className = 'word'; wordEl.textContent = word.text; this.elements.wordStream.appendChild(wordEl); if (index < this.state.words.length - 1) { this.elements.wordStream.appendChild(document.createTextNode(' ')); } const kanaLength = kanaParts[index].length; this.state.wordBoundaries.push({ startIndex: currentKanaLength, endIndex: currentKanaLength + kanaLength, element: wordEl }); currentKanaLength += kanaLength + (isSpaceRequired ? 1 : 0); }); this.updateWordHighlight(); this.updateKanaDisplay(); }
+        handleKeyDown(e) { if (e.target.tagName === 'INPUT') return; if (!this.state.gameActive) return; e.preventDefault(); if (this.state.wordTyper.isFinished()) { return; } const key = e.key.toLowerCase(); if (key.length > 1 && key !== ' ' && key !== 'backspace') return; if (this.state.settings.spaceToggle === false && key === ' ') return; this.state.totalTypedChars++; const result = this.state.wordTyper.update(key); send('charTyped', { isCorrect: result.isCorrect }); if (result.isCorrect) { this.state.correctTypedKeys++; this.fireBulletFrom(this.state.clientId); } this.updateWordHighlight(); this.updateKanaDisplay(); this.updateStats(); }
+        updateWordHighlight() { const typedLength = this.state.wordTyper.getTypedKana().length; let currentWordEl = null; this.state.wordBoundaries.forEach(boundary => { boundary.element.classList.remove('current', 'correct'); if (typedLength >= boundary.endIndex) { boundary.element.classList.add('correct'); } else if (typedLength >= boundary.startIndex) { boundary.element.classList.add('current'); currentWordEl = boundary.element; } }); if (currentWordEl) { const wordDisplay = this.elements.wordDisplay; const lineHeight = parseFloat(getComputedStyle(currentWordEl).lineHeight); if (currentWordEl.offsetTop > wordDisplay.scrollTop + wordDisplay.clientHeight - (lineHeight * 2)) { wordDisplay.scrollTop = currentWordEl.offsetTop - lineHeight; } else if (currentWordEl.offsetTop < wordDisplay.scrollTop) { wordDisplay.scrollTop = currentWordEl.offsetTop; } } }
+        updateStats() { if (!this.state.startTime) return; const elapsed = (Date.now() - this.state.startTime) / 1000; if (elapsed > 0) { const kps = this.state.correctTypedKeys / elapsed; this.elements.kpsEl.textContent = kps.toFixed(2); this.elements.kpmEl.textContent = Math.round(kps * 60); } if (this.state.totalTypedChars > 0) { const acc = (this.state.correctTypedKeys / this.state.totalTypedChars) * 100; this.elements.accuracyEl.textContent = `${acc.toFixed(1)}%`; } }
+        updateKanaDisplay() { if (!this.state.wordTyper) return; const typedKana = this.state.wordTyper.getTypedKana(); const typedLength = typedKana.length; let typedForDisplay = ''; let untypedForDisplay = ''; if (this.state.settings.spaceToggle) { typedForDisplay = typedKana; untypedForDisplay = this.state.fullKanaString.substring(typedLength); } else { const untyped_parts = []; for (const boundary of this.state.wordBoundaries) { if (boundary.endIndex <= typedLength) continue; const word = this.state.fullKanaString.substring(boundary.startIndex, boundary.endIndex); if (boundary.startIndex < typedLength) { untyped_parts.push(word.substring(typedLength - boundary.startIndex)); } else { untyped_parts.push(word); } } untypedForDisplay = untyped_parts.join('　'); const typed_parts = []; for (const boundary of this.state.wordBoundaries) { if (boundary.startIndex >= typedLength) break; const word = this.state.fullKanaString.substring(boundary.startIndex, boundary.endIndex); if (boundary.endIndex > typedLength) { typed_parts.push(word.substring(0, typedLength - boundary.startIndex)); } else { typed_parts.push(word); } } typedForDisplay = typed_parts.join('　'); if (this.state.wordBoundaries.some(b => b.endIndex === typedLength) && typedLength < this.state.fullKanaString.length) { typedForDisplay += '　'; } } const kanaStreamEl = document.getElementById('kanaStream'); kanaStreamEl.innerHTML = `<span class="typed">${typedForDisplay}</span><span id="cursor"></span><span class="untyped">${untypedForDisplay}</span>`; const cursorEl = document.getElementById('cursor'); if (cursorEl) { cursorEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } }
+        updateHpDisplay(team1Hp, team2Hp) { const oldHp1 = this.state.hp[1]; const oldHp2 = this.state.hp[2]; this.state.hp = { 1: team1Hp, 2: team2Hp }; this.updateAllHpBars(); if (team1Hp < oldHp1) { document.querySelector('#team-1-area .team-sprite').classList.add('hit'); setTimeout(() => document.querySelector('#team-1-area .team-sprite').classList.remove('hit'), 200); } if (team2Hp < oldHp2) { document.querySelector('#team-2-area .team-sprite').classList.add('hit'); setTimeout(() => document.querySelector('#team-2-area .team-sprite').classList.remove('hit'), 200); } }
+        fireBulletFrom(shooterId) {
+            const shooter = this.state.players[shooterId];
+            if (!shooter) return;
+
+            const myPlayer = this.state.players[this.state.clientId];
+            const isMyShot = shooter.id === myPlayer.id;
+            const isTeammateShot = shooter.team === myPlayer.team && !isMyShot;
+
+            const startTeamNum = shooter.team;
+            const targetTeamNum = startTeamNum === 1 ? 2 : 1;
+
+            const startEl = document.querySelector(`#team-${startTeamNum}-area .team-sprite`);
+            const targetEl = document.querySelector(`#team-${targetTeamNum}-area .team-sprite`);
+            if (!startEl || !targetEl) return;
+            
+            const teamPlayers = Object.values(this.state.teams[startTeamNum]).sort((a,b) => a.id.localeCompare(b.id));
+            const shooterIndex = teamPlayers.findIndex(p => p.id === shooterId);
+            const teamSize = teamPlayers.length;
+            const BULLET_SPREAD_AMOUNT = 25; 
+            const yOffset = (shooterIndex - (teamSize - 1) / 2) * BULLET_SPREAD_AMOUNT;
+
+            const bullet = document.createElement('div');
+            bullet.className = `bullet`;
+            if (isMyShot) bullet.style.backgroundColor = '#e2b714';
+            else if (isTeammateShot) bullet.style.backgroundColor = '#4caf50'; 
+            else bullet.style.backgroundColor = '#f44336'; 
+
+            this.elements.gameArena.appendChild(bullet);
+
+            const arenaRect = this.elements.gameArena.getBoundingClientRect();
+            const startRect = startEl.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            
+            const startX = startRect.left - arenaRect.left + (startRect.width / 2);
+            const startY = startRect.top - arenaRect.top + (startRect.height / 2) + yOffset;
+            const endX = targetRect.left - arenaRect.left + (targetRect.width / 2);
+            const endY = targetRect.top - arenaRect.top + (targetRect.height / 2) + yOffset;
+
+            bullet.style.left = `${startX}px`;
+            bullet.style.top = `${startY}px`;
+
+            const shooterNameEl = document.createElement('div');
+            shooterNameEl.className = 'shooter-name';
+            shooterNameEl.textContent = shooter.name;
+            bullet.appendChild(shooterNameEl);
+            
+            const animation = bullet.animate([
+                { transform: 'translate(0, 0)', opacity: 1 },
+                { transform: `translate(${endX - startX}px, ${endY - startY}px)`, opacity: 0 }
+            ], { duration: 800, easing: 'ease-in' });
+            
+            animation.onfinish = () => bullet.remove();
+        }
+        cacheDynamicElements() { this.elements.team1HpBar = document.querySelector('#team-1-area .team-hp-bar'); this.elements.team2HpBar = document.querySelector('#team-2-area .team-hp-bar'); this.elements.team1HpFill = this.elements.team1HpBar.querySelector('.team-hp-fill'); this.elements.team2HpFill = this.elements.team2HpBar.querySelector('.team-hp-fill'); this.elements.team1HpValue = this.elements.team1HpBar.querySelector('.team-hp-value'); this.elements.team2HpValue = this.elements.team2HpBar.querySelector('.team-hp-value'); }
+        updateAllHpBars() { if (!this.state.hp || !this.state.maxHp || !this.elements.team1HpFill) return; const {hp, maxHp} = this.state; const percent1 = maxHp[1] > 0 ? (hp[1] / maxHp[1]) * 100 : 0; this.elements.team1HpFill.style.width = `${percent1}%`; this.elements.team1HpValue.textContent = `${Math.round(hp[1])} / ${Math.round(maxHp[1])}`; const percent2 = maxHp[2] > 0 ? (hp[2] / maxHp[2]) * 100 : 0; this.elements.team2HpFill.style.width = `${percent2}%`; this.elements.team2HpValue.textContent = `${Math.round(hp[2])} / ${Math.round(maxHp[2])}`; }
+        async showVictoryAnimation(winnerTeam) {
+            const victoryText = document.getElementById('victory-text');
+            const loserTeam = winnerTeam === 1 ? 2 : 1;
+            const loserSprite = document.querySelector(`#team-${loserTeam}-area .team-sprite`);
+
+            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            if (loserSprite) {
+                loserSprite.classList.add('defeated');
+            }
+            await wait(2000); 
+
+            await wait(1000);
+
+            victoryText.textContent = `TEAM ${winnerTeam} WIN!`;
+            victoryText.classList.add('show');
+
+            const end = Date.now() + (3 * 1000); 
+            const colors = ['#e2b714', '#ffffff'];
+            (function frame() {
+                confetti({
+                    particleCount: 2,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0, y: 0.7 },
+                    colors: colors
+                });
+                confetti({
+                    particleCount: 2,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1, y: 0.7 },
+                    colors: colors
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+
+            await wait(4000); 
+
+            victoryText.classList.remove('show');
+            if (loserSprite) {
+                loserSprite.classList.remove('defeated');
+            }
+            
+            const resultsEl = document.getElementById('results');
+            const existingReason = resultsEl.querySelector('.disconnect-reason');
+            if (existingReason) {
+                existingReason.remove();
+            }
+        }
+    }
+
+    const game = new MultiplayerTypingGame();
+
+    ws.onopen = () => { console.log('Connected'); showScreen('entry'); };
+    ws.onmessage = async (event) => {
+        try {
+            const { type, payload } = JSON.parse(event.data);
+            switch (type) {
+                case 'connected': { game.state.clientId = payload.clientId; break; }
+                case 'roomList': {
+                    const el = document.getElementById('roomList');
+                    el.innerHTML = '';
+                    if (payload.rooms.length > 0) {
+                        payload.rooms.forEach(room => {
+                            const r = document.createElement('div');
+                            r.className = 'room-item';
+                            let status = '';
+                            if (room.isGaming) {
+                                status = `<span style="color: #e2b714;">[試合中]</span>`;
+                                r.style.cursor = 'not-allowed';
+                            } else {
+                                r.style.cursor = 'pointer';
+                                r.onclick = () => document.getElementById('roomNameInput').value = room.name;
+                            }
+                            r.innerHTML = `${room.name} (${room.hostName}) - ${room.playerCount}/${room.maxPlayers} ${status}`;
+                            el.appendChild(r);
+                        });
+                    } else {
+                        el.innerHTML = '<div>参加可能な部屋はありません。</div>';
+                    }
+                    break;
+                }
+                case 'error': {
+                    alert(`エラー: ${payload.message}`);
+                    break;
+                }
+                case 'gameLobby': {
+                    game.state.players = payload.players;
+                    game.state.teams = payload.teams;
+                    game.state.isHost = game.state.clientId === payload.host;
+                    
+                    const lobbyTeamsEl = document.getElementById('lobbyTeams');
+                    if (lobbyTeamsEl) {
+                        if (game.state.isHost) {
+                            lobbyTeamsEl.classList.add('is-host-view');
+                        } else {
+                            lobbyTeamsEl.classList.remove('is-host-view');
+                        }
+                    }
+
+                    const team1ListEl = document.getElementById('lobby-team-1');
+                    const team2ListEl = document.getElementById('lobby-team-2');
+                    team1ListEl.innerHTML = '';
+                    team2ListEl.innerHTML = '';
+
+                    const createPlayerElement = (player) => {
+                        const el = document.createElement('div');
+                        el.textContent = player.name;
+                        el.className = 'player-name-item';
+                        if (game.state.isHost) {
+                            el.title = 'クリックしてチームを移動';
+                            el.onclick = () => {
+                                if (game.state.clientId !== player.id) {
+                                    send('changeTeam', { playerId: player.id });
+                                }
+                            };
+                        }
+                        return el;
+                    };
+
+                    Object.values(payload.teams[1]).forEach(p => team1ListEl.appendChild(createPlayerElement(p)));
+                    Object.values(payload.teams[2]).forEach(p => team2ListEl.appendChild(createPlayerElement(p)));
+
+                    // ホスト権限セクションの表示/非表示（ここが修正箇所）
+                    const hostRequestSection = document.getElementById('host-request-section');
+                    if (hostRequestSection) {
+                        if (!game.state.isHost && payload.hasPassword) {
+                            hostRequestSection.classList.remove('hidden');
+                        } else {
+                            hostRequestSection.classList.add('hidden');
+                        }
+                    }
+                    
+                    const kpmSettingsDiv = document.getElementById('kpmSettings');
+                    kpmSettingsDiv.innerHTML = '';
+                    Object.values(payload.players).forEach(p => {
+                        const group = document.createElement('div');
+                        group.className = 'input-group';
+                        group.innerHTML = `<label for="kpm-player-${p.id}">${p.name} KPM:</label>
+                                        <input type="number" id="kpm-player-${p.id}" value="${p.level}" ${!game.state.isHost ? 'disabled' : ''}>`;
+                        
+                        if (game.state.isHost) {
+                            const inputEl = group.querySelector('input');
+                            inputEl.onchange = (e) => {
+                                send('updateKpm', { playerId: p.id, kpm: e.target.value });
+                            };
+                        }
+        
+                        kpmSettingsDiv.appendChild(group);
+                    });
+
+                    document.getElementById('startGameBtn').disabled = !game.state.isHost;
+                    showScreen('lobby');
+                    break;
+                }
+                case 'gameStarting': { showScreen('main'); game.state = { ...game.state, ...payload }; document.querySelector('#team-1-area .player-list').innerHTML = Object.values(payload.teams[1]).map(p => p.name).join('<br>'); document.querySelector('#team-2-area .player-list').innerHTML = Object.values(payload.teams[2]).map(p => p.name).join('<br>'); game.cacheDynamicElements(); game.updateAllHpBars(); game.startGame(payload.words, payload.settings); break; }
+                case 'hpUpdate': { game.state.hp = payload.hp; game.updateHpDisplay(payload.hp[1], payload.hp[2]); break; }
+                case 'opponentShot': { game.fireBulletFrom(payload.shooterId); break; }
+                case 'teammateShot': { game.fireBulletFrom(payload.shooterId); break; }
+                case 'matchResult': { 
+                    if(game.state.gameActive) game.finishGame(); 
+                    
+                    const myTeamNum = game.state.players[game.state.clientId]?.team;
+                    const winnerTeam = payload.result.winnerTeam;
+
+                    document.getElementById('resultsTitle').textContent = myTeamNum === winnerTeam ? '勝利！' : '敗北...';
+                    game.state.disconnectReason = payload.result.reason || null;
+
+                    await game.showVictoryAnimation(winnerTeam);
+
+                    const resultsEl = document.getElementById('results');
+                    const existingReason = resultsEl.querySelector('.disconnect-reason');
+                    if (existingReason) {
+                        existingReason.remove();
+                    }
+                    if (game.state.disconnectReason) {
+                        const reasonEl = document.createElement('p');
+                        reasonEl.className = 'disconnect-reason';
+                        reasonEl.textContent = game.state.disconnectReason;
+                        document.querySelector('#results .modal-content').insertBefore(reasonEl, document.querySelector('#results .results-grid'));
+                    }
+                    showScreen('results'); 
+
+                    setTimeout(() => {
+                        const returnBtn = document.getElementById('returnToLobbyBtn');
+                        if (returnBtn) {
+                            returnBtn.textContent = 'ロビーに戻る';
+                            returnBtn.disabled = false;
+                        }
+                        showScreen('lobby');
+                    }, 1500);
+
+                    break; 
+                }
+                case 'newChatMessage': { 
+                    const messagesDiv = document.getElementById('chat-messages');
+                    const messageEl = document.createElement('div');
+                    messageEl.textContent = `${payload.sender}: ${payload.message}`;
+                    messagesDiv.appendChild(messageEl);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    break; 
+                }
+                case 'chatHistory': {
+                    const messagesDiv = document.getElementById('chat-messages');
+                    messagesDiv.innerHTML = ''; 
+                    payload.messages.forEach(msg => {
+                        const messageEl = document.createElement('div');
+                        messageEl.textContent = `${msg.sender}: ${msg.message}`;
+                        messagesDiv.appendChild(messageEl);
+                    });
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    break;
+                }
+                case 'roomDeletionSuccess': {
+                    alert('部屋が削除されました。');
+                    window.location.reload();
+                    break;
+                }
+                case 'roomDeletionError': {
+                    alert(`部屋の削除に失敗しました: ${payload.message}`);
+                    break;
+                }
+            }
+        } catch(e) { console.error('Error handling message', e); }
+    };
+    ws.onclose = () => { alert('サーバーとの接続が切れました。ページをリロードしてください。'); };
+
+    const deleteBtn = document.getElementById('deleteRoomBtn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            const password = document.getElementById('deleteRoomPassword').value;
+            if (!password) {
+                alert('削除パスワードを入力してください。');
+                return;
+            }
+            if (confirm('本当にこの部屋を削除しますか？この操作は元に戻せません。')) {
+                send('deleteRoom', { password });
+            }
+        });
+    }
+
+    // ホスト権限取得ボタンのイベントリスナー
+    const requestHostBtn = document.getElementById('requestHostBtn');
+    if (requestHostBtn) {
+        requestHostBtn.addEventListener('click', () => {
+            const password = document.getElementById('hostRequestPassword').value;
+            if (!password) {
+                alert('パスワードを入力してください。');
+                return;
+            }
+            send('requestHost', { password });
+        });
+    }
+
+    document.getElementById('joinRoomBtn').addEventListener('click', () => { const playerName = document.getElementById('playerNameInput').value.trim(); const roomName = document.getElementById('roomNameInput').value.trim(); const password = document.getElementById('roomPasswordInput').value; const level = parseInt(document.getElementById('levelInput').value, 10) || 250; if (!playerName || !roomName) { alert('名前と部屋名を入力してください。'); return; } game.state.playerName = playerName; game.state.roomName = roomName; send('joinRoom', { roomName, playerName, password, isPrivate: document.getElementById('privateRoomCheckbox').checked, level }); });
+    document.getElementById('refreshRoomsBtn').addEventListener('click', () => send('getRooms'));
+    document.getElementById('startGameBtn').addEventListener('click', () => { if (game.state.isHost) { let timeSetting = parseInt(document.getElementById('timeSettingInput').value, 10); timeSetting = (isNaN(timeSetting) || timeSetting < 10) ? 60 : timeSetting; send('requestStartGame', { timeSetting, spaceToggle: document.getElementById('spaceToggleCheckbox').checked }); } });
+    document.getElementById('leaveLobbyBtn').addEventListener('click', () => window.location.reload());
+    document.getElementById('leaveRoomBtn').addEventListener('click', () => window.location.reload());
+    document.getElementById('chat-form').addEventListener('submit', (e) => { e.preventDefault(); const input = document.getElementById('chat-input'); const message = input.value.trim(); if (message) { send('sendChatMessage', { message }); input.value = ''; } });
+});
+
+class ChunkPattern {
+}
+ChunkPattern.list = new Map([
+    ["あ", [["a"]]], ["い", [["i"], ["yi"]]], ["う", [["u"], ["wu"], ["whu"]]], ["え", [["e"]]], ["お", [["o"]]],
+    ["うぁ", [["wha"]]], ["うぃ", [["wi"], ["whi"]]], ["うぇ", [["we"], ["whe"]]], ["うぉ", [["who"]]],
+    ["ゐ", [["wi"]]], ["ゑ", [["we"]]], ["ぁ", [["la"], ["xa"]]], ["ぃ", [["li"], ["xi"], ["lyi"], ["xyi"]]], ["ぅ", [["lu"], ["xu"]]], ["ぇ", [["le"], ["xe"], ["lye"], ["xye"]]], ["ぉ", [["lo"], ["xo"]]],
+    ["ぃぇ", [["ye"]]], ["か", [["ka"], ["ca"]]], ["き", [["ki"]]], ["く", [["ku"], ["cu"], ["qu"]]], ["け", [["ke"]]], ["こ", [["ko"], ["co"]]],
+    ["きゃ", [["kya"]]], ["きぃ", [["kyi"]]], ["きゅ", [["kyu"]]], ["きぇ", [["kye"]]], ["きょ", [["kyo"]]],
+    ["くゃ", [["qya"]]], ["くゅ", [["qyu"]]], ["くょ", [["qyo"]]], ["くぁ", [["qa"], ["qwa"], ["kwa"]]], ["くぃ", [["qi"], ["qwi"], ["qyi"]]], ["くぅ", [["qwu"]]], ["くぇ", [["qe"], ["qwe"], ["qye"]]], ["くぉ", [["qo"], ["qwo"]]],
+    ["が", [["ga"]]], ["ぎ", [["gi"]]], ["ぐ", [["gu"]]], ["げ", [["ge"]]], ["ご", [["go"]]],
+    ["ぎゃ", [["gya"]]], ["ぎぃ", [["gyi"]]], ["ぎゅ", [["gyu"]]], ["ぎぇ", [["gye"]]], ["ぎょ", [["gyo"]]],
+    ["ぐぁ", [["gwa"]]], ["ぐぃ", [["gwi"]]], ["ぐぅ", [["gwu"]]], ["ぐぇ", [["gwe"]]], ["ぐぉ", [["gwo"]]],
+    ["ヵ", [["lka"], ["xka"]]], ["ヶ", [["lke"], ["xke"]]], ["さ", [["sa"]]], ["し", [["si"], ["ci"], ["shi"]]], ["す", [["su"]]], ["せ", [["se"], ["ce"]]], ["そ", [["so"]]],
+    ["しゃ", [["sya"], ["sha"]]], ["しぃ", [["syi"]]], ["しゅ", [["syu"], ["shu"]]], ["しぇ", [["sye"], ["she"]]], ["しょ", [["syo"], ["sho"]]],
+    ["すぁ", [["swa"]]], ["すぃ", [["swi"]]], ["すぅ", [["swu"]]], ["すぇ", [["swe"]]], ["すぉ", [["swo"]]],
+    ["ざ", [["za"]]], ["じ", [["zi"], ["ji"]]], ["ず", [["zu"]]], ["ぜ", [["ze"]]], ["ぞ", [["zo"]]],
+    ["じゃ", [["ja"], ["zya"], ["jya"]]], ["じぃ", [["zyi"], ["jyi"]]], ["じゅ", [["ju"], ["zyu"], ["jyu"]]], ["じぇ", [["je"], ["zye"], ["jye"]]], ["じょ", [["jo"], ["zyo"], ["jyo"]]],
+    ["た", [["ta"]]], ["ち", [["ti"], ["chi"]]], ["つ", [["tu"], ["tsu"]]], ["て", [["te"]]], ["と", [["to"]]],
+    ["ちゃ", [["tya"], ["cha"], ["cya"]]], ["ちぃ", [["tyi"], ["cyi"]]], ["ちゅ", [["tyu"], ["chu"], ["cyu"]]], ["ちぇ", [["tye"], ["che"], ["cye"]]], ["ちょ", [["tyo"], ["cho"], ["cyo"]]],
+    ["つぁ", [["tsa"]]], ["つぃ", [["tsi"]]], ["つぇ", [["tse"]]], ["つぉ", [["tso"]]],
+    ["てゃ", [["tha"]]], ["てぃ", [["thi"]]], ["てゅ", [["thu"]]], ["てぇ", [["the"]]], ["てょ", [["tho"]]],
+    ["とぁ", [["twa"]]], ["とぃ", [["twi"]]], ["とぅ", [["twu"]]], ["とぇ", [["twe"]]], ["とぉ", [["two"]]],
+    ["だ", [["da"]]], ["ぢ", [["di"]]], ["づ", [["du"]]], ["で", [["de"]]], ["ど", [["do"]]],
+    ["ぢゃ", [["dya"]]], ["ぢぃ", [["dyi"]]], ["ぢゅ", [["dyu"]]], ["ぢぇ", [["dye"]]], ["ぢょ", [["dyo"]]],
+    ["でゃ", [["dha"]]], ["でぃ", [["dhi"]]], ["でゅ", [["dhu"]]], ["でぇ", [["dhe"]]], ["でょ", [["dho"]]],
+    ["どぁ", [["dwa"]]], ["どぃ", [["dwi"]]], ["どぅ", [["dwu"]]], ["どぇ", [["dwe"]]], ["どぉ", [["dwo"]]],
+    ["っ", [["ltu"], ["xtu"], ["ltsu"], ["xtsu"]]], ["な", [["na"]]], ["に", [["ni"]]], ["ぬ", [["nu"]]], ["ね", [["ne"]]], ["の", [["no"]]],
+    ["にゃ", [["nya"]]], ["にぃ", [["nyi"]]], ["にゅ", [["nyu"]]], ["にぇ", [["nye"]]], ["にょ", [["nyo"]]],
+    ["は", [["ha"]]], ["ひ", [["hi"]]], ["ふ", [["hu"], ["fu"]]], ["へ", [["he"]]], ["ほ", [["ho"]]],
+    ["ひゃ", [["hya"]]], ["ひぃ", [["hyi"]]], ["ひゅ", [["hyu"]]], ["ひぇ", [["hye"]]], ["ひょ", [["hyo"]]],
+    ["ふぁ", [["fa"], ["fwa"]]], ["ふぃ", [["fi"], ["fwi"], ["fyi"]]], ["ふぅ", [["fwu"]]], ["ふぇ", [["fe"], ["fwe"], ["fye"]]], ["ふぉ", [["fo"], ["fwo"]]],
+    ["ふゃ", [["fya"]]], ["ふゅ", [["fyu"]]], ["ふょ", [["fyo"]]], ["ば", [["ba"]]], ["び", [["bi"]]], ["ぶ", [["bu"]]], ["べ", [["be"]]], ["ぼ", [["bo"]]],
+    ["びゃ", [["bya"]]], ["びぃ", [["byi"]]], ["びゅ", [["byu"]]], ["びぇ", [["bye"]]], ["びょ", [["byo"]]],
+    ["ヴぁ", [["va"]]], ["ヴぃ", [["vi"]]], ["ヴ", [["vu"]]], ["ヴぇ", [["ve"]]], ["ヴぉ", [["vo"]]],
+    ["ヴゃ", [["vya"]]], ["ヴぃ", [["vyi"]]], ["ヴゅ", [["vyu"]]], ["ヴぇ", [["vye"]]], ["ヴょ", [["vyo"]]],
+    ["ぱ", [["pa"]]], ["ぴ", [["pi"]]], ["ぷ", [["pu"]]], ["ぺ", [["pe"]]], ["ぽ", [["po"]]],
+    ["ぴゃ", [["pya"]]], ["ぴぃ", [["pyi"]]], ["ぴゅ", [["pyu"]]], ["ぴぇ", [["pye"]]], ["ぴょ", [["pyo"]]],
+    ["ま", [["ma"]]], ["み", [["mi"]]], ["む", [["mu"]]], ["め", [["me"]]], ["も", [["mo"]]],
+    ["みゃ", [["mya"]]], ["みぃ", [["myi"]]], ["みゅ", [["myu"]]], ["みぇ", [["mye"]]], ["みょ", [["myo"]]],
+    ["や", [["ya"]]], ["ゆ", [["yu"]]], ["よ", [["yo"]]], ["ゃ", [["lya"], ["xya"]]], ["ゅ", [["lyu"], ["xyu"]]], ["ょ", [["lyo"], ["xyo"]]],
+    ["ら", [["ra"]]], ["り", [["ri"]]], ["る", [["ru"]]], ["れ", [["re"]]], ["ろ", [["ro"]]],
+    ["りゃ", [["rya"]]], ["りぃ", [["ryi"]]], ["りゅ", [["ryu"]]], ["りぇ", [["rye"]]], ["りょ", [["ryo"]]],
+    ["わ", [["wa"]]], ["を", [["wo"]]], ["ん", [["n"], ["nn"], ["n'"], ["xn"]]], ["ゎ", [["lwa"], ["xwa"]]], ["ー", [["-"]]], ["　", [[" "]]]
+]);
+ChunkPattern._initialize = (() => {
+    for (const chunkPattern of ChunkPattern.list) {
+        const kana = chunkPattern[0];
+        if (kana.length >= 2) {
+            let multiPattern = [];
+            for (const c of kana) {
+                if (multiPattern.length === 0) {
+                    multiPattern = ChunkPattern.list.get(c);
+                }
+                else {
+                    const tmp = [];
+                    for (const p1 of multiPattern) {
+                        for (const p2 of ChunkPattern.list.get(c)) {
+                            tmp.push(p1.concat(p2));
+                        }
+                    }
+                    multiPattern = tmp;
+                }
+            }
+            ChunkPattern.list.set(kana, chunkPattern[1].concat(multiPattern));
+        }
+    }
+})();
+
+function devideIntoChunk(kana) {
+    const ret = [];
+    for (let i = 0; i < kana.length; ++i) {
+        if (i >= kana.length - 1) {
+            ret.push(new Chunk(kana[i]));
+            break;
+        }
+        if (kana[i] !== "っ" && kana[i] !== "ん") {
+            if (!ChunkPattern.list.has(kana[i] + kana[i + 1])) {
+                ret.push(new Chunk(kana[i]));
+            }
+            else {
+                ret.push(new Chunk(kana[i] + kana[i + 1]));
+                ++i;
+            }
+        }
+        else {
+            if (i >= kana.length - 2) {
+                ret.push(new Chunk(kana[i] + kana[i + 1]));
+                break;
+            }
+            if (!ChunkPattern.list.has(kana[i + 1] + kana[i + 2])) {
+                ret.push(new Chunk(kana[i] + kana[i + 1]));
+                ++i;
+            }
+            else {
+                ret.push(new Chunk(kana[i] + kana[i + 1] + kana[i + 2]));
+                i += 2;
+            }
+        }
+    }
+    return ret;
+}
+
+class TypePattern {
+    constructor(romanList) {
+        this._isValid = true;
+        this._romanCount = 0;
+        this._curKanaRomanIndex = 0;
+        this._curKanaRomanCount = 0;
+        this._kanaRomanList = romanList;
+        this._roman = romanList.join("");
+    }
+    getCurChar() {
+        return this._roman[this._romanCount] || '';
+    }
+    increment(kanaFinished) {
+        ++this._romanCount;
+        ++this._curKanaRomanCount;
+        if (this._curKanaRomanCount >= this._curKanaRoman.length) {
+            ++this._curKanaRomanIndex;
+            this._curKanaRomanCount = 0;
+            kanaFinished(this._curKanaRomanIndex);
+        }
+    }
+    get _curKanaRoman() {
+        return this._kanaRomanList[this._curKanaRomanIndex];
+    }
+    get isValid() {
+        return this._isValid;
+    }
+    isChunkFinished() {
+        return this._romanCount >= this._roman.length;
+    }
+    invalidate() {
+        this._isValid = false;
+    }
+}
+
+class TypePatternList {
+    constructor(romanLists) {
+        this._displayPatternNum = 0;
+        this._isChunkFinished = false;
+        this._additionalRomanCount = 0;
+        this._typePatternList = romanLists.map((romanList) => new TypePattern(romanList));
+    }
+    isCorrectInput(inputChar) {
+        for (const typePattern of this._typePatternList) {
+            if (typePattern.isValid && typePattern.getCurChar() === inputChar)
+                return true;
+        }
+        return false;
+    }
+    update(inputChar, kanaFinished) {
+        if (!this.isCorrectInput(inputChar)) {
+            return false;
+        }
+        for (const typePattern of this._typePatternList) {
+            if (!typePattern.isValid)
+                continue;
+            if (inputChar === typePattern.getCurChar()) {
+                typePattern.increment(kanaFinished);
+                if (typePattern.isChunkFinished()) {
+                    this._isChunkFinished = true;
+                    continue;
+                }
+            }
+            else {
+                if (typePattern === this._typePatternList[this._displayPatternNum]) {
+                    this._displayPatternNum = -1;
+                }
+                typePattern.invalidate();
+            }
+        }
+        if (this._displayPatternNum === -1) {
+            for (let i = 0; i < this._typePatternList.length; ++i) {
+                if (this._typePatternList[i].isValid) {
+                    this._displayPatternNum = i;
+                    break;
+                }
+            }
+        }
+        return true;
+    }
+    get isChunkFinished() {
+        return this._isChunkFinished;
+    }
+}
+
+class Chunk {
+    constructor(kana) {
+        this._kanaCount = 0;
+        this._xtuVowels = ["a", "i", "u", "e", "o", "n"];
+        this._xnVowels = this._xtuVowels.concat(["y"]);
+        this._kana = kana;
+        if (!ChunkPattern.list.has(kana)) {
+            if (kana.length > 1 && ChunkPattern.list.has(kana[0]) && ChunkPattern.list.has(kana.substr(1))) {
+                    const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                const newPatterns = [];
+                const xnPatterns = ChunkPattern.list.get(kana[0]); 
+                for (const roman of curPatterns) {
+                    for (const xn of xnPatterns) {
+                        if (xn[0] !== "n") {
+                            newPatterns.push(xn.concat(roman));
+                        }
+                        else {
+                            if (!this._xnVowels.includes(roman[0][0])) {
+                                newPatterns.push(xn.concat(roman));
+                            }
+                        }
+                    }
+                }
+                this._typePatternList = new TypePatternList(newPatterns);
+            } else {
+                this._typePatternList = new TypePatternList([[]]); 
+            }
+        } else if (kana.length == 1) {
+            this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+        }
+        else {
+            if (kana[0] === "っ") {
+                const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                const newPatterns = [];
+                for (const roman of curPatterns) {
+                    const romanFirstChar = roman[0][0];
+                    if (!this._xtuVowels.includes(romanFirstChar)) {
+                        newPatterns.push([romanFirstChar].concat(roman));
+                    }
+                }
+                for (const roman of curPatterns) {
+                    for (const xtu of ChunkPattern.list.get("っ")) {
+                        newPatterns.push(xtu.concat(roman));
+                    }
+                }
+                this._typePatternList = new TypePatternList(newPatterns);
+            }
+            else if (kana[0] === "ん") {
+                const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                const newPatterns = [];
+                const xnPatterns = ChunkPattern.list.get("ん");
+                for (const roman of curPatterns) {
+                    for (const xn of xnPatterns) {
+                        if (xn[0] !== "n") {
+                            newPatterns.push(xn.concat(roman));
+                        }
+                        else {
+                            if (!this._xnVowels.includes(roman[0][0])) {
+                                newPatterns.push(xn.concat(roman));
+                            }
+                        }
+                    }
+                }
+                this._typePatternList = new TypePatternList(newPatterns);
+            }
+            else {
+                this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+            }
+        }
+    }
+    update(inputChar) {
+        const kanaFinished = (newKanaCount) => {
+            this._kanaCount = newKanaCount;
+        };
+        const ret = this._typePatternList.update(inputChar, kanaFinished);
+        if (this._typePatternList.isChunkFinished) {
+            this._kanaCount = this._kana.length;
+        }
+        return ret;
+    }
+    get kanaCount() {
+        return this._kanaCount;
+    }
+    get isChunkFinished() {
+        return this._typePatternList.isChunkFinished;
+    }
+    get kana() {
+        return this._kana;
+    }
+}
+
+class WordTyper {
+    constructor(kana) {
+        this.kana = kana;
+        this.chunks = devideIntoChunk(kana);
+        this.chunkIndex = 0;
+    }
+    update(key) {
+        if (this.isFinished()) return { isCorrect: false };
+        const currentChunk = this.chunks[this.chunkIndex];
+        let isCorrect = currentChunk.update(key);
+        if (!isCorrect) {
+            const nextChunk = this.chunks[this.chunkIndex + 1];
+            if (currentChunk && typeof currentChunk.kana === 'string' && currentChunk.kana[0] === 'っ' && nextChunk) {
+                try {
+                    const tplContainer = nextChunk._typePatternList;
+                    const tpl = tplContainer && tplContainer._typePatternList;
+                    if (tpl && tpl.length > 0) {
+                        let matchNextFirstChar = false;
+                        for (const tp of tpl) {
+                            const c = (tp.getCurChar && tp.getCurChar()) || '';
+                            if (c === key) {
+                                matchNextFirstChar = true;
+                                break;
+                            }
+                        }
+                        if (matchNextFirstChar) {
+                            try {
+                                currentChunk._kanaCount = currentChunk._kana.length;
+                            } catch (e) {}
+                            this.chunkIndex++;
+                            if (!this.isFinished()) {
+                                return this.update(key);
+                            } else {
+                                return { isCorrect: true, isFinished: this.isFinished() };
+                            }
+                        }
+                    }
+                } catch (err) {}
+            }
+        }
+        if (currentChunk.isChunkFinished) {
+            this.chunkIndex++;
+        }
+        return {
+            isCorrect,
+            isFinished: this.isFinished(),
+        };
+    }
+    isFinished() {
+        return this.chunkIndex >= this.chunks.length;
+    }
+    getTypedKana() {
+        if (this.isFinished()) return this.kana;
+        const completedKana = this.chunks.slice(0, this.chunkIndex).map(c => c.kana).join('');
+        const partialChunk = this.chunks[this.chunkIndex];
+        const partialKana = partialChunk ? partialChunk.kana.substring(0, partialChunk.kanaCount) : '';
+        return completedKana + partialKana;
+    }
+}
+</script>
+</body>
+</html>

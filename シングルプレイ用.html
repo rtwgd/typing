@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語タイピング練習 (履歴・グラフ付き)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: #323437;
+            color: #d1d0c5;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        /* --- Compact Mode Styles --- */
+        body.compact-mode {
+            justify-content: center;
+            background: #202225;
+        }
+        
+        body.compact-mode .header,
+        body.compact-mode .controls,
+        body.compact-mode .stats,
+        body.compact-mode .level-chart-section,
+        body.compact-mode .advanced-settings,
+        body.compact-mode .history-section {
+            display: none !important;
+        }
+
+        body.compact-mode .test-area {
+            margin-bottom: 0;
+            transform: scale(1.1);
+        }
+
+        #exitCompactBtn {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #646669;
+            border: 1px solid #646669;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        #exitCompactBtn:hover {
+            background: #e2b714;
+            color: #323437;
+            border-color: #e2b714;
+        }
+        body.compact-mode #exitCompactBtn {
+            display: block;
+        }
+
+        /* --- Styles --- */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 300;
+            color: #e2b714;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #646669;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            max-width: 900px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #2c2e31;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .control-group label {
+            font-size: 0.85rem;
+            color: #646669;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .custom-input {
+            width: 80px;
+            background: #323437;
+            color: #d1d0c5;
+            border: 1px solid #646669;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        select, button {
+            background: #323437;
+            color: #d1d0c5;
+            border: 1px solid #646669;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:hover, button:hover, .custom-input:hover {
+            border-color: #e2b714;
+        }
+
+        button.primary-btn {
+            background: #e2b714;
+            color: #323437;
+            font-weight: bold;
+            border: 1px solid #e2b714;
+        }
+        button.primary-btn:hover {
+            background: #f4c430;
+        }
+
+        /* --- Advanced Settings (Collapsible) --- */
+        .advanced-settings {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 30px;
+            border: 1px solid #646669;
+            border-radius: 8px;
+            background: #2c2e31;
+            overflow: hidden;
+        }
+
+        .advanced-settings summary {
+            padding: 10px 15px;
+            cursor: pointer;
+            color: #e2b714;
+            font-weight: bold;
+            user-select: none;
+            outline: none;
+        }
+
+        .advanced-content {
+            padding: 15px;
+            border-top: 1px solid #646669;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .advanced-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex: 1;
+            min-width: 200px;
+        }
+        .advanced-group label {
+            font-size: 0.8rem;
+            color: #646669;
+        }
+        .text-input {
+            background: #323437;
+            color: #d1d0c5;
+            border: 1px solid #646669;
+            padding: 6px;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .file-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        /* --- Test Area --- */
+        .test-area {
+            max-width: 800px;
+            width: 100%;
+            margin-bottom: 40px;
+            cursor: text;
+            transition: transform 0.3s;
+        }
+
+        .word-display {
+            background: #2c2e31;
+            padding: 30px;
+            border-radius: 8px;
+            font-size: 1.8rem;
+            line-height: 2.2;
+            height: auto;
+            max-height: 80vh; 
+            border: 2px solid transparent;
+            transition: border-color 0.2s, height 0.2s ease;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #wordStream {
+            position: relative;
+            width: 100%;
+            transition: transform 0.3s ease-in-out;
+            white-space: normal;
+            word-break: break-word;
+            display: block;
+        }
+
+        .word {
+            display: inline-block;
+            margin-right: 1rem;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s;
+            max-width: 100%;
+            box-sizing: border-box;
+            margin-right: 8px;
+        }
+
+        .word.current {
+            color: #e2b714;
+        }
+
+        .kana-display {
+            font-size: 1.4rem;
+            color: #d1d0c5;
+            margin-top: 15px;
+            height: 2.5em;
+            text-align: center;
+            letter-spacing: 2px;
+            background: #2c2e31;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .kana-stream {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            white-space: nowrap;
+        }
+
+        .kana-stream .typed {
+            color: #646669;
+        }
+        .kana-stream .untyped {
+            opacity: 1;
+        }
+
+        #cursor {
+            display: inline-block;
+            background-color: #e2b714;
+            width: 2px;
+            height: 1.4rem;
+            vertical-align: middle;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e2b714;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #646669;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* --- Level Chart Section --- */
+        .level-chart-section {
+            max-width: 800px;
+            width: 100%;
+            margin-top: 40px;
+            padding-bottom: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #levelChartContainer {
+            margin-top: 20px;
+            width: 100%;
+            transition: opacity 0.3s ease;
+        }
+
+        #levelTable {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        #levelTable th, #levelTable td {
+            padding: 12px 15px;
+            border: 1px solid #646669;
+        }
+
+        #levelTable th {
+            background-color: #2c2e31;
+            color: #e2b714;
+            font-weight: bold;
+        }
+
+        #levelTable tr:nth-child(even) {
+            background-color: #2c2e31;
+        }
+
+        /* --- History Section --- */
+        .history-section {
+            max-width: 900px;
+            width: 100%;
+            margin-top: 40px;
+            margin-bottom: 60px;
+            background: #2c2e31;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #646669;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .history-header h2 {
+            color: #e2b714;
+            font-size: 1.5rem;
+        }
+
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #202225;
+            border-radius: 4px;
+            border: 1px solid #646669;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .filter-group select, .filter-group input {
+            padding: 4px;
+            background: #323437;
+            color: #d1d0c5;
+            border: 1px solid #646669;
+            border-radius: 3px;
+        }
+
+        .filter-input {
+            width: 60px;
+            background: #323437;
+            color: #d1d0c5;
+            border: 1px solid #646669;
+            padding: 4px;
+            border-radius: 3px;
+            display: none;
+            margin-left: 5px;
+        }
+        .filter-input:focus {
+            border-color: #e2b714;
+            outline: none;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        /* --- Results Modal --- */
+        .results {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .results.show {
+            display: flex;
+        }
+
+        .results-content {
+            background: #2c2e31;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .results h2 {
+            color: #e2b714;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .result-settings-display {
+            background: #323437;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 0.9rem;
+            color: #d1d0c5;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .result-settings-display h3 {
+            grid-column: 1 / -1;
+            color: #646669;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #646669;
+            padding-bottom: 5px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        .setting-label { color: #646669; }
+        .setting-val { color: #e2b714; font-weight: bold; }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #646669;
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #e2b714;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <button id="exitCompactBtn">コンパクトモード終了 (ESC)</button>
+
+    <div class="header">
+        <h1 class="title">日本語タイピング練習</h1>
+        <p class="subtitle">Japanese Typing Practice</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="wordCountSelect">単語数</label>
+            <select id="wordCountSelect">
+                <option value="15">15</option>
+                <option value="30" selected>30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <input type="number" id="customWordCount" class="custom-input" placeholder="任意" min="1">
+        </div>
+        
+        <div class="control-group">
+            <label for="timeLimitSelect">時間(秒)</label>
+            <select id="timeLimitSelect">
+                <option value="30">30</option>
+                <option value="60" selected>60</option>
+                <option value="120">120</option>
+                <option value="0">無制限</option>
+            </select>
+            <input type="number" id="customTimeLimit" class="custom-input" placeholder="任意" min="0">
+        </div>
+
+        <div class="control-group">
+            <label for="strokeLimitSelect">打鍵数</label>
+            <select id="strokeLimitSelect">
+                <option value="0" selected>無制限</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="300">300</option>
+                <option value="400">400</option>
+            </select>
+            <input type="number" id="customStrokeLimit" class="custom-input" placeholder="任意" min="1">
+        </div>
+
+        <div class="control-group">
+            <input type="checkbox" id="spaceToggle" checked>
+            <label for="spaceToggle">Space必須</label>
+        </div>
+        
+        <button id="restartBtn" class="primary-btn">再スタート</button>
+        <button id="compactModeBtn">コンパクトモード</button>
+    </div>
+
+    <details class="advanced-settings">
+        <summary>詳細設定・設定インポート/エクスポート</summary>
+        <div class="advanced-content">
+            <div class="advanced-group">
+                <label for="includeKeys">出題するかな (例: あ, か, きゃ)</label>
+                <input type="text" id="includeKeys" class="text-input" placeholder="あ, か, きゃ...">
+            </div>
+            <div class="advanced-group">
+                <label for="excludeKeys">除外するかな (例: ん, ぱ)</label>
+                <input type="text" id="excludeKeys" class="text-input" placeholder="ん, ぱ...">
+            </div>
+            
+            <div class="file-actions">
+                <button id="exportSettingsBtn">設定をエクスポート</button>
+                <button id="importSettingsBtn">設定をインポート</button>
+                <input type="file" id="importFileInput" accept=".json" style="display:none">
+            </div>
+        </div>
+    </details>
+
+    <div class="test-area" id="testArea">
+        <div id="wordDisplay" class="word-display">
+            <div id="wordStream"></div>
+        </div>
+        <div id="kanaDisplay" class="kana-display">
+            <div id="kanaStream" class="kana-stream"></div>
+        </div>
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <span id="kpm" class="stat-value">0</span>
+            <span class="stat-label">KPM</span>
+        </div>
+        <div class="stat">
+            <span id="kps" class="stat-value">0.00</span>
+            <span class="stat-label">KPS</span>
+        </div>
+        <div class="stat">
+            <span id="accuracy" class="stat-value">100%</span>
+            <span class="stat-label">正確性</span>
+        </div>
+        <div class="stat">
+            <span id="timer" class="stat-value">60</span>
+            <span class="stat-label">時間/残</span>
+        </div>
+    </div>
+
+    <div class="level-chart-section">
+        <button id="toggleLevelBtn">レベル一覧を表示</button>
+        <div id="levelChartContainer" style="display: none;">
+            <table id="levelTable">
+                <thead>
+                    <tr>
+                        <th>Level</th>
+                        <th>KPM (キー毎分)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="history-section">
+        <div class="history-header">
+            <h2>タイピング記録と推移</h2>
+            <div style="display:flex; gap:10px;">
+                <button id="exportHistoryBtn">履歴をJSONで保存</button>
+                <button id="importHistoryBtn">履歴を読み込み</button>
+                <button id="clearHistoryBtn" style="color:#ff6b6b; border-color:#ff6b6b;">履歴消去</button>
+                <input type="file" id="importHistoryInput" accept=".json" style="display:none">
+            </div>
+        </div>
+
+        <div class="filter-controls">
+            <span style="font-size: 0.8rem; color: #e2b714;">グラフ絞り込み:</span>
+            
+            <div class="filter-group">
+                <label>単語数</label>
+                <select id="filterWordCount">
+                    <option value="all">全て</option>
+                    <option value="15">15</option>
+                    <option value="30">30</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="custom">その他(定形外)</option>
+                    <option value="manual">数値指定</option>
+                </select>
+                <input type="number" id="filterWordCountInput" class="filter-input" placeholder="値">
+            </div>
+
+            <div class="filter-group">
+                <label>時間</label>
+                <select id="filterTimeLimit">
+                    <option value="all">全て</option>
+                    <option value="30">30秒</option>
+                    <option value="60">60秒</option>
+                    <option value="120">120秒</option>
+                    <option value="0">無制限</option>
+                    <option value="custom">その他(定形外)</option>
+                    <option value="manual">数値指定</option>
+                </select>
+                <input type="number" id="filterTimeLimitInput" class="filter-input" placeholder="秒">
+            </div>
+
+            <div class="filter-group">
+                <label>打鍵制限</label>
+                <select id="filterStrokeLimit">
+                    <option value="all">全て</option>
+                    <option value="0">無制限</option>
+                    <option value="limit">あり(全て)</option>
+                    <option value="manual">数値指定</option>
+                </select>
+                <input type="number" id="filterStrokeLimitInput" class="filter-input" placeholder="打">
+            </div>
+
+            <div class="filter-group">
+                <label>Space</label>
+                <select id="filterSpace">
+                    <option value="all">全て</option>
+                    <option value="true">必須</option>
+                    <option value="false">不要</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>詳細設定</label>
+                <select id="filterAdvanced">
+                    <option value="all">全て</option>
+                    <option value="none">指定なし</option>
+                    <option value="used">指定あり</option>
+                </select>
+            </div>
+
+            <div class="filter-group" style="margin-left: 10px; border-left: 1px solid #646669; padding-left: 10px;">
+                <label>範囲(回)</label>
+                <input type="number" id="filterRangeStart" class="filter-input" style="display:inline-block; width:50px;" placeholder="始">
+                <span style="color:#646669">～</span>
+                <input type="number" id="filterRangeEnd" class="filter-input" style="display:inline-block; width:50px;" placeholder="終">
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+    </div>
+
+    <div id="results" class="results">
+        <div class="results-content">
+            <h2>結果</h2>
+            <div class="results-grid">
+                <div class="stat">
+                    <span id="finalLevel" class="stat-value">-</span>
+                    <span class="stat-label">Level</span>
+                </div>
+                <div class="stat">
+                    <span id="finalKPM" class="stat-value">0</span>
+                    <span class="stat-label">KPM</span>
+                </div>
+                <div class="stat">
+                    <span id="finalKPS" class="stat-value">0.00</span>
+                    <span class="stat-label">KPS</span>
+                </div>
+                <div class="stat">
+                    <span id="finalAccuracy" class="stat-value">100%</span>
+                    <span class="stat-label">正確性</span>
+                </div>
+                <div class="stat">
+                    <span id="finalTime" class="stat-value">0</span>
+                    <span class="stat-label">経過時間</span>
+                </div>
+            </div>
+
+            <div class="result-settings-display">
+                <h3>プレイ設定</h3>
+                <div class="setting-item"><span class="setting-label">単語数:</span> <span id="resWordCount" class="setting-val">-</span></div>
+                <div class="setting-item"><span class="setting-label">制限時間:</span> <span id="resTimeLimit" class="setting-val">-</span></div>
+                <div class="setting-item"><span class="setting-label">打鍵数制限:</span> <span id="resStrokeLimit" class="setting-val">-</span></div>
+                <div class="setting-item"><span class="setting-label">Space必須:</span> <span id="resSpace" class="setting-val">-</span></div>
+                <div class="setting-item"><span class="setting-label">含むかな:</span> <span id="resInclude" class="setting-val">-</span></div>
+                <div class="setting-item"><span class="setting-label">除外かな:</span> <span id="resExclude" class="setting-val">-</span></div>
+            </div>
+
+            <button id="restartBtnResults" class="primary-btn restart-btn">もう一度</button>
+        </div>
+    </div>
+
+    <script>
+    (async () => {
+        // --- Logic from typing.ts (transpiled to JS) ---
+        class ChunkPattern {
+        }
+        ChunkPattern.list = new Map([
+            ["あ", [["a"]]], ["い", [["i"], ["yi"]]], ["う", [["u"], ["wu"], ["whu"]]], ["え", [["e"]]], ["お", [["o"]]],
+            ["うぁ", [["wha"]]], ["うぃ", [["wi"], ["whi"]]], ["うぇ", [["we"], ["whe"]]], ["うぉ", [["who"]]],
+            ["ゐ", [["wi"]]], ["ゑ", [["we"]]], ["ぁ", [["la"], ["xa"]]], ["ぃ", [["li"], ["xi"], ["lyi"], ["xyi"]]], ["ぅ", [["lu"], ["xu"]]], ["ぇ", [["le"], ["xe"], ["lye"], ["xye"]]], ["ぉ", [["lo"], ["xo"]]],
+            ["ぃぇ", [["ye"]]], ["か", [["ka"], ["ca"]]], ["き", [["ki"]]], ["く", [["ku"], ["cu"], ["qu"]]], ["け", [["ke"]]], ["こ", [["ko"], ["co"]]],
+            ["きゃ", [["kya"]]], ["きぃ", [["kyi"]]], ["きゅ", [["kyu"]]], ["きぇ", [["kye"]]], ["きょ", [["kyo"]]],
+            ["くゃ", [["qya"]]], ["くゅ", [["qyu"]]], ["くょ", [["qyo"]]], ["くぁ", [["qa"], ["qwa"], ["kwa"]]], ["くぃ", [["qi"], ["qwi"], ["qyi"]]], ["くぅ", [["qwu"]]], ["くぇ", [["qe"], ["qwe"], ["qye"]]], ["くぉ", [["qo"], ["qwo"]]],
+            ["が", [["ga"]]], ["ぎ", [["gi"]]], ["ぐ", [["gu"]]], ["げ", [["ge"]]], ["ご", [["go"]]],
+            ["ぎゃ", [["gya"]]], ["ぎぃ", [["gyi"]]], ["ぎゅ", [["gyu"]]], ["ぎぇ", [["gye"]]], ["ぎょ", [["gyo"]]],
+            ["ぐぁ", [["gwa"]]], ["ぐぃ", [["gwi"]]], ["ぐぅ", [["gwu"]]], ["ぐぇ", [["gwe"]]], ["ぐぉ", [["gwo"]]],
+            ["ヵ", [["lka"], ["xka"]]], ["ヶ", [["lke"], ["xke"]]], ["さ", [["sa"]]], ["し", [["si"], ["ci"], ["shi"]]], ["す", [["su"]]], ["せ", [["se"], ["ce"]]], ["そ", [["so"]]],
+            ["しゃ", [["sya"], ["sha"]]], ["しぃ", [["syi"]]], ["しゅ", [["syu"], ["shu"]]], ["しぇ", [["sye"], ["she"]]], ["しょ", [["syo"], ["sho"]]],
+            ["すぁ", [["swa"]]], ["すぃ", [["swi"]]], ["すぅ", [["swu"]]], ["すぇ", [["swe"]]], ["すぉ", [["swo"]]],
+            ["ざ", [["za"]]], ["じ", [["zi"], ["ji"]]], ["ず", [["zu"]]], ["ぜ", [["ze"]]], ["ぞ", [["zo"]]],
+            ["じゃ", [["ja"], ["zya"], ["jya"]]], ["じぃ", [["zyi"], ["jyi"]]], ["じゅ", [["ju"], ["zyu"], ["jyu"]]], ["じぇ", [["je"], ["zye"], ["jye"]]], ["じょ", [["jo"], ["zyo"], ["jyo"]]],
+            ["た", [["ta"]]], ["ち", [["ti"], ["chi"]]], ["つ", [["tu"], ["tsu"]]], ["て", [["te"]]], ["と", [["to"]]],
+            ["ちゃ", [["tya"], ["cha"], ["cya"]]], ["ちぃ", [["tyi"], ["cyi"]]], ["ちゅ", [["tyu"], ["chu"], ["cyu"]]], ["ちぇ", [["tye"], ["che"], ["cye"]]], ["ちょ", [["tyo"], ["cho"], ["cyo"]]],
+            ["つぁ", [["tsa"]]], ["つぃ", [["tsi"]]], ["つぇ", [["tse"]]], ["つぉ", [["tso"]]],
+            ["てゃ", [["tha"]]], ["てぃ", [["thi"]]], ["てゅ", [["thu"]]], ["てぇ", [["the"]]], ["てょ", [["tho"]]],
+            ["とぁ", [["twa"]]], ["とぃ", [["twi"]]], ["とぅ", [["twu"]]], ["とぇ", [["twe"]]], ["とぉ", [["two"]]],
+            ["だ", [["da"]]], ["ぢ", [["di"]]], ["づ", [["du"]]], ["で", [["de"]]], ["ど", [["do"]]],
+            ["ぢゃ", [["dya"]]], ["ぢぃ", [["dyi"]]], ["ぢゅ", [["dyu"]]], ["ぢぇ", [["dye"]]], ["ぢょ", [["dyo"]]],
+            ["でゃ", [["dha"]]], ["でぃ", [["dhi"]]], ["でゅ", [["dhu"]]], ["でぇ", [["dhe"]]], ["でょ", [["dho"]]],
+            ["どぁ", [["dwa"]]], ["どぃ", [["dwi"]]], ["どぅ", [["dwu"]]], ["どぇ", [["dwe"]]], ["どぉ", [["dwo"]]],
+            ["っ", [["ltu"], ["xtu"], ["ltsu"], ["xtsu"]]], ["な", [["na"]]], ["に", [["ni"]]], ["ぬ", [["nu"]]], ["ね", [["ne"]]], ["の", [["no"]]],
+            ["にゃ", [["nya"]]], ["にぃ", [["nyi"]]], ["にゅ", [["nyu"]]], ["にぇ", [["nye"]]], ["にょ", [["nyo"]]],
+            ["は", [["ha"]]], ["ひ", [["hi"]]], ["ふ", [["hu"], ["fu"]]], ["へ", [["he"]]], ["ほ", [["ho"]]],
+            ["ひゃ", [["hya"]]], ["ひぃ", [["hyi"]]], ["ひゅ", [["hyu"]]], ["ひぇ", [["hye"]]], ["ひょ", [["hyo"]]],
+            ["ふぁ", [["fa"], ["fwa"]]], ["ふぃ", [["fi"], ["fwi"], ["fyi"]]], ["ふぅ", [["fwu"]]], ["ふぇ", [["fe"], ["fwe"], ["fye"]]], ["ふぉ", [["fo"], ["fwo"]]],
+            ["ふゃ", [["fya"]]], ["ふゅ", [["fyu"]]], ["ふょ", [["fyo"]]], ["ば", [["ba"]]], ["び", [["bi"]]], ["ぶ", [["bu"]]], ["べ", [["be"]]], ["ぼ", [["bo"]]],
+            ["びゃ", [["bya"]]], ["びぃ", [["byi"]]], ["びゅ", [["byu"]]], ["びぇ", [["bye"]]], ["びょ", [["byo"]]],
+            ["ヴぁ", [["va"]]], ["ヴぃ", [["vi"]]], ["ヴ", [["vu"]]], ["ヴぇ", [["ve"]]], ["ヴぉ", [["vo"]]],
+            ["ヴゃ", [["vya"]]], ["ヴぃ", [["vyi"]]], ["ヴゅ", [["vyu"]]], ["ヴぇ", [["vye"]]], ["ヴょ", [["vyo"]]],
+            ["ぱ", [["pa"]]], ["ぴ", [["pi"]]], ["ぷ", [["pu"]]], ["ぺ", [["pe"]]], ["ぽ", [["po"]]],
+            ["ぴゃ", [["pya"]]], ["ぴぃ", [["pyi"]]], ["ぴゅ", [["pyu"]]], ["ぴぇ", [["pye"]]], ["ぴょ", [["pyo"]]],
+            ["ま", [["ma"]]], ["み", [["mi"]]], ["む", [["mu"]]], ["め", [["me"]]], ["も", [["mo"]]],
+            ["みゃ", [["mya"]]], ["みぃ", [["myi"]]], ["みゅ", [["myu"]]], ["みぇ", [["mye"]]], ["みょ", [["myo"]]],
+            ["や", [["ya"]]], ["ゆ", [["yu"]]], ["よ", [["yo"]]], ["ゃ", [["lya"], ["xya"]]], ["ゅ", [["lyu"], ["xyu"]]], ["ょ", [["lyo"], ["xyo"]]],
+            ["ら", [["ra"]]], ["り", [["ri"]]], ["る", [["ru"]]], ["れ", [["re"]]], ["ろ", [["ro"]]],
+            ["りゃ", [["rya"]]], ["りぃ", [["ryi"]]], ["りゅ", [["ryu"]]], ["りぇ", [["rye"]]], ["りょ", [["ryo"]]],
+            ["わ", [["wa"]]], ["を", [["wo"]]], ["ん", [["n"], ["nn"], ["n'"], ["xn"]]], ["ゎ", [["lwa"], ["xwa"]]], ["ー", [["-"]]], ["　", [[" "]]]
+        ]);
+        ChunkPattern._initialize = (() => {
+            for (const chunkPattern of ChunkPattern.list) {
+                const kana = chunkPattern[0];
+                if (kana.length >= 2) {
+                    let multiPattern = [];
+                    for (const c of kana) {
+                        if (multiPattern.length === 0) {
+                            multiPattern = ChunkPattern.list.get(c);
+                        }
+                        else {
+                            const tmp = [];
+                            for (const p1 of multiPattern) {
+                                for (const p2 of ChunkPattern.list.get(c)) {
+                                    tmp.push(p1.concat(p2));
+                                }
+                            }
+                            multiPattern = tmp;
+                        }
+                    }
+                    ChunkPattern.list.set(kana, chunkPattern[1].concat(multiPattern));
+                }
+            }
+        })();
+
+        function devideIntoChunk(kana) {
+            const ret = [];
+            for (let i = 0; i < kana.length; ++i) {
+                if (i >= kana.length - 1) {
+                    ret.push(new Chunk(kana[i]));
+                    break;
+                }
+                if (kana[i] !== "っ" && kana[i] !== "ん") {
+                    if (!ChunkPattern.list.has(kana[i] + kana[i + 1])) {
+                        ret.push(new Chunk(kana[i]));
+                    }
+                    else {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        ++i;
+                    }
+                }
+                else {
+                    if (i >= kana.length - 2) {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        break;
+                    }
+                    if (!ChunkPattern.list.has(kana[i + 1] + kana[i + 2])) {
+                        ret.push(new Chunk(kana[i] + kana[i + 1]));
+                        ++i;
+                    }
+                    else {
+                        ret.push(new Chunk(kana[i] + kana[i + 1] + kana[i + 2]));
+                        i += 2;
+                    }
+                }
+            }
+            return ret;
+        }
+
+        function calculateMinKeystrokes(kanaString) {
+            const chunks = devideIntoChunk(kanaString);
+            let totalStrokes = 0;
+
+            for (const chunk of chunks) {
+                const kana = chunk.kana;
+                const patterns = ChunkPattern.list.get(kana);
+                if (patterns && patterns.length > 0) {
+                    let minLen = Infinity;
+                    for (const patternArr of patterns) {
+                        const strokeCount = patternArr.length;
+                        if (strokeCount < minLen) {
+                            minLen = strokeCount;
+                        }
+                    }
+                    totalStrokes += minLen;
+                } else {
+                    totalStrokes += kana.length;
+                }
+            }
+            return totalStrokes;
+        }
+
+        function checkWordMatchesKana(word, includeKeys, excludeKeys) {
+            const kanaStr = word.kana.join(''); 
+            if (excludeKeys.length > 0) {
+                const hasExclude = excludeKeys.some(k => kanaStr.includes(k));
+                if (hasExclude) return false;
+            }
+            if (includeKeys.length > 0) {
+                const hasInclude = includeKeys.some(k => kanaStr.includes(k));
+                if (!hasInclude) return false;
+            }
+            return true;
+        }
+
+        class TypePattern {
+            constructor(romanList) {
+                this._isValid = true;
+                this._romanCount = 0;
+                this._curKanaRomanIndex = 0;
+                this._curKanaRomanCount = 0;
+                this._kanaRomanList = romanList;
+                this._roman = romanList.join("");
+            }
+            getCurChar() {
+                return this._roman[this._romanCount] || '';
+            }
+            increment(kanaFinished) {
+                ++this._romanCount;
+                ++this._curKanaRomanCount;
+                if (this._curKanaRomanCount >= this._curKanaRoman.length) {
+                    ++this._curKanaRomanIndex;
+                    this._curKanaRomanCount = 0;
+                    kanaFinished(this._curKanaRomanIndex);
+                }
+            }
+            get _curKanaRoman() {
+                return this._kanaRomanList[this._curKanaRomanIndex];
+            }
+            get isValid() {
+                return this._isValid;
+            }
+            isChunkFinished() {
+                return this._romanCount >= this._roman.length;
+            }
+            invalidate() {
+                this._isValid = false;
+            }
+        }
+
+        class TypePatternList {
+            constructor(romanLists) {
+                this._displayPatternNum = 0;
+                this._isChunkFinished = false;
+                this._additionalRomanCount = 0;
+                this._typePatternList = romanLists.map((romanList) => new TypePattern(romanList));
+            }
+            isCorrectInput(inputChar) {
+                for (const typePattern of this._typePatternList) {
+                    if (typePattern.isValid && typePattern.getCurChar() === inputChar)
+                        return true;
+                }
+                return false;
+            }
+            update(inputChar, kanaFinished) {
+                if (!this.isCorrectInput(inputChar)) {
+                    return false;
+                }
+                for (const typePattern of this._typePatternList) {
+                    if (!typePattern.isValid)
+                        continue;
+                    if (inputChar === typePattern.getCurChar()) {
+                        typePattern.increment(kanaFinished);
+                        if (typePattern.isChunkFinished()) {
+                            this._isChunkFinished = true;
+                            continue;
+                        }
+                    }
+                    else {
+                        if (typePattern === this._typePatternList[this._displayPatternNum]) {
+                            this._displayPatternNum = -1;
+                        }
+                        typePattern.invalidate();
+                    }
+                }
+                if (this._displayPatternNum === -1) {
+                    for (let i = 0; i < this._typePatternList.length; ++i) {
+                        if (this._typePatternList[i].isValid) {
+                            this._displayPatternNum = i;
+                            break;
+                        }
+                    }
+                }
+                return true;
+            }
+            get isChunkFinished() {
+                return this._isChunkFinished;
+            }
+        }
+
+        class Chunk {
+            constructor(kana) {
+                this._kanaCount = 0;
+                this._xtuVowels = ["a", "i", "u", "e", "o", "n"];
+                this._xnVowels = this._xtuVowels.concat(["y"]);
+                this._kana = kana;
+                if (!ChunkPattern.list.has(kana)) {
+                    if (kana.length > 1 && ChunkPattern.list.has(kana[0]) && ChunkPattern.list.has(kana.substr(1))) {
+                         const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        const xnPatterns = ChunkPattern.list.get(kana[0]); 
+                        for (const roman of curPatterns) {
+                            for (const xn of xnPatterns) {
+                                if (xn[0] !== "n") {
+                                    newPatterns.push(xn.concat(roman));
+                                }
+                                else {
+                                    if (!this._xnVowels.includes(roman[0][0])) {
+                                        newPatterns.push(xn.concat(roman));
+                                    }
+                                }
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    } else {
+                        this._typePatternList = new TypePatternList([[]]); 
+                    }
+                } else if (kana.length == 1) {
+                    this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+                }
+                else {
+                    if (kana[0] === "っ") {
+                        const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        for (const roman of curPatterns) {
+                            const romanFirstChar = roman[0][0];
+                            if (!this._xtuVowels.includes(romanFirstChar)) {
+                                newPatterns.push([romanFirstChar].concat(roman));
+                            }
+                        }
+                        for (const roman of curPatterns) {
+                            for (const xtu of ChunkPattern.list.get("っ")) {
+                                newPatterns.push(xtu.concat(roman));
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    }
+                    else if (kana[0] === "ん") {
+                        const curPatterns = ChunkPattern.list.get(kana.substr(1));
+                        const newPatterns = [];
+                        const xnPatterns = ChunkPattern.list.get("ん");
+                        for (const roman of curPatterns) {
+                            for (const xn of xnPatterns) {
+                                if (xn[0] !== "n") {
+                                    newPatterns.push(xn.concat(roman));
+                                }
+                                else {
+                                    if (!this._xnVowels.includes(roman[0][0])) {
+                                        newPatterns.push(xn.concat(roman));
+                                    }
+                                }
+                            }
+                        }
+                        this._typePatternList = new TypePatternList(newPatterns);
+                    }
+                    else {
+                        this._typePatternList = new TypePatternList(ChunkPattern.list.get(kana));
+                    }
+                }
+            }
+            update(inputChar) {
+                const kanaFinished = (newKanaCount) => {
+                    this._kanaCount = newKanaCount;
+                };
+                const ret = this._typePatternList.update(inputChar, kanaFinished);
+                if (this._typePatternList.isChunkFinished) {
+                    this._kanaCount = this._kana.length;
+                }
+                return ret;
+            }
+            get kanaCount() {
+                return this._kanaCount;
+            }
+            get isChunkFinished() {
+                return this._typePatternList.isChunkFinished;
+            }
+            get kana() {
+                return this._kana;
+            }
+        }
+
+        class WordTyper {
+            constructor(kana) {
+                this.kana = kana;
+                this.chunks = devideIntoChunk(kana);
+                this.chunkIndex = 0;
+            }
+            update(key) {
+                if (this.isFinished()) return { isCorrect: false };
+                const currentChunk = this.chunks[this.chunkIndex];
+                let isCorrect = currentChunk.update(key);
+                if (!isCorrect) {
+                    const nextChunk = this.chunks[this.chunkIndex + 1];
+                    if (currentChunk && typeof currentChunk.kana === 'string' && currentChunk.kana[0] === 'っ' && nextChunk) {
+                        try {
+                            const tplContainer = nextChunk._typePatternList;
+                            const tpl = tplContainer && tplContainer._typePatternList;
+                            if (tpl && tpl.length > 0) {
+                                let matchNextFirstChar = false;
+                                for (const tp of tpl) {
+                                    const c = (tp.getCurChar && tp.getCurChar()) || '';
+                                    if (c === key) {
+                                        matchNextFirstChar = true;
+                                        break;
+                                    }
+                                }
+                                if (matchNextFirstChar) {
+                                    try {
+                                        currentChunk._kanaCount = currentChunk._kana.length;
+                                    } catch (e) {}
+                                    this.chunkIndex++;
+                                    if (!this.isFinished()) {
+                                        return this.update(key);
+                                    } else {
+                                        return { isCorrect: true, isFinished: this.isFinished() };
+                                    }
+                                }
+                            }
+                        } catch (err) {}
+                    }
+                }
+                if (currentChunk.isChunkFinished) {
+                    this.chunkIndex++;
+                }
+                return {
+                    isCorrect,
+                    isFinished: this.isFinished(),
+                };
+            }
+            isFinished() {
+                return this.chunkIndex >= this.chunks.length;
+            }
+            getTypedKana() {
+                if (this.isFinished()) return this.kana;
+                const completedKana = this.chunks.slice(0, this.chunkIndex).map(c => c.kana).join('');
+                const partialChunk = this.chunks[this.chunkIndex];
+                const partialKana = partialChunk ? partialChunk.kana.substring(0, partialChunk.kanaCount) : '';
+                return completedKana + partialKana;
+            }
+        }
+
+        const levelMap = [
+            { level: 'ZZ', kpm: 4000 }, { level: 'ZX', kpm: 3000 }, { level: 'ZS', kpm: 2400 },
+            { level: 'ZA', kpm: 2000 }, { level: 'ZB', kpm: 1714.29 }, { level: 'ZC', kpm: 1500 },
+            { level: 'ZD', kpm: 1333.33 }, { level: 'ZE', kpm: 1200 }, { level: 'ZF', kpm: 1090.91 },
+            { level: 'ZG', kpm: 1000 }, { level: 'ZH', kpm: 923.08 }, { level: 'ZI', kpm: 857.14 },
+            { level: 'ZJ', kpm: 800 }, { level: 'XX', kpm: 750 }, { level: 'XS', kpm: 705.88 },
+            { level: 'XA', kpm: 666.67 }, { level: 'XB', kpm: 631.58 }, { level: 'XC', kpm: 600 },
+            { level: 'XD', kpm: 571.43 }, { level: 'XE', kpm: 545.45 }, { level: 'XF', kpm: 521.74 },
+            { level: 'XG', kpm: 500 }, { level: 'XH', kpm: 480 }, { level: 'XI', kpm: 461.54 },
+            { level: 'XJ', kpm: 444.44 }, { level: 'SS', kpm: 428.57 }, { level: 'SA', kpm: 413.79 },
+            { level: 'SB', kpm: 400 }, { level: 'SC', kpm: 387.10 }, { level: 'SD', kpm: 375 },
+            { level: 'SE', kpm: 363.64 }, { level: 'SF', kpm: 352.94 }, { level: 'SG', kpm: 342.86 },
+            { level: 'SH', kpm: 333.33 }, { level: 'SI', kpm: 324.32 }, { level: 'SJ', kpm: 315.79 },
+            { level: 'A', kpm: 300 }, { level: 'B', kpm: 279.07 }, { level: 'C', kpm: 255.32 },
+            { level: 'D', kpm: 230.77 }, { level: 'E', kpm: 206.90 }, { level: 'F', kpm: 184.62 },
+            { level: 'G', kpm: 164.38 }, { level: 'H', kpm: 146.34 }, { level: 'I', kpm: 130.43 },
+            { level: 'J', kpm: 116.50 }
+        ];
+
+        function getLevel(kpm) {
+            for (const item of levelMap) {
+                if (kpm >= item.kpm) {
+                    return item.level;
+                }
+            }
+            return '-';
+        }
+
+        // --- HISTORY MANAGER CLASS ---
+        class HistoryManager {
+            constructor() {
+                this.storageKey = 'typing_history_v1';
+                this.history = this.load();
+                this.chart = null;
+                this.initUI();
+            }
+
+            load() {
+                try {
+                    const data = localStorage.getItem(this.storageKey);
+                    return data ? JSON.parse(data) : [];
+                } catch (e) {
+                    console.error("Failed to load history", e);
+                    return [];
+                }
+            }
+
+            save(record) {
+                this.history.push(record);
+                localStorage.setItem(this.storageKey, JSON.stringify(this.history));
+                this.updateChart();
+            }
+
+            clear() {
+                if(confirm("履歴を全て消去しますか？")) {
+                    this.history = [];
+                    localStorage.removeItem(this.storageKey);
+                    this.updateChart();
+                }
+            }
+
+            export() {
+                const blob = new Blob([JSON.stringify(this.history, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `typing_history_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            import(file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (Array.isArray(data)) {
+                            if(confirm("現在の履歴を上書きしますか？(Cancelで追加)")) {
+                                this.history = data;
+                            } else {
+                                this.history = this.history.concat(data);
+                            }
+                            localStorage.setItem(this.storageKey, JSON.stringify(this.history));
+                            this.updateChart();
+                            alert("履歴を読み込みました。");
+                        }
+                    } catch (e) {
+                        alert("読み込みエラー");
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            initUI() {
+                document.getElementById('exportHistoryBtn').addEventListener('click', () => this.export());
+                document.getElementById('clearHistoryBtn').addEventListener('click', () => this.clear());
+                document.getElementById('importHistoryBtn').addEventListener('click', () => {
+                    document.getElementById('importHistoryInput').click();
+                });
+                document.getElementById('importHistoryInput').addEventListener('change', (e) => {
+                    if (e.target.files[0]) this.import(e.target.files[0]);
+                    e.target.value = '';
+                });
+
+                // フィルタUIの制御用関数
+                const setupFilter = (selectId, inputId) => {
+                    const selectEl = document.getElementById(selectId);
+                    const inputEl = inputId ? document.getElementById(inputId) : null;
+
+                    selectEl.addEventListener('change', () => {
+                        // manualが選ばれたら入力欄を表示
+                        if (inputEl) {
+                            if (selectEl.value === 'manual') {
+                                inputEl.style.display = 'inline-block';
+                                inputEl.focus();
+                            } else {
+                                inputEl.style.display = 'none';
+                            }
+                        }
+                        this.updateChart();
+                    });
+
+                    if (inputEl) {
+                        // 入力欄が変わったときもチャート更新
+                        inputEl.addEventListener('input', () => this.updateChart());
+                    }
+                };
+
+                setupFilter('filterWordCount', 'filterWordCountInput');
+                setupFilter('filterTimeLimit', 'filterTimeLimitInput');
+                setupFilter('filterStrokeLimit', 'filterStrokeLimitInput');
+                setupFilter('filterSpace', null);
+                setupFilter('filterAdvanced', null);
+
+                // 範囲指定のイベントリスナー
+                document.getElementById('filterRangeStart').addEventListener('input', () => this.updateChart());
+                document.getElementById('filterRangeEnd').addEventListener('input', () => this.updateChart());
+
+                this.initChart();
+            }
+
+            getFilteredData() {
+                const fWord = document.getElementById('filterWordCount').value;
+                const fWordInput = parseInt(document.getElementById('filterWordCountInput').value);
+
+                const fTime = document.getElementById('filterTimeLimit').value;
+                const fTimeInput = parseInt(document.getElementById('filterTimeLimitInput').value);
+
+                const fStroke = document.getElementById('filterStrokeLimit').value;
+                const fStrokeInput = parseInt(document.getElementById('filterStrokeLimitInput').value);
+
+                const fSpace = document.getElementById('filterSpace').value;
+                const fAdv = document.getElementById('filterAdvanced').value;
+
+                return this.history.filter(rec => {
+                    const s = rec.settings;
+                    
+                    // --- Word Count Filtering ---
+                    if (fWord !== 'all') {
+                        if (fWord === 'manual') {
+                            if (!isNaN(fWordInput) && s.wordCount !== fWordInput) return false;
+                        } else if (fWord === 'custom') {
+                            if ([15,30,50,100].includes(s.wordCount)) return false;
+                        } else {
+                            if (s.wordCount != fWord) return false;
+                        }
+                    }
+
+                    // --- Time Limit Filtering ---
+                    if (fTime !== 'all') {
+                        if (fTime === 'manual') {
+                            if (!isNaN(fTimeInput) && s.wordCount !== fTimeInput) {
+                                if (s.timeLimit !== fTimeInput) return false;
+                            }
+                        } else if (fTime === 'custom') {
+                            if ([0,30,60,120].includes(s.timeLimit)) return false;
+                        } else {
+                            if (s.timeLimit != fTime) return false;
+                        }
+                    }
+
+                    // --- Stroke Limit Filtering ---
+                    if (fStroke !== 'all') {
+                        if (fStroke === 'manual') {
+                            if (!isNaN(fStrokeInput) && s.strokeLimit !== fStrokeInput) return false;
+                        } else {
+                            if (fStroke === '0' && s.strokeLimit !== 0) return false;
+                            if (fStroke === 'limit' && s.strokeLimit === 0) return false;
+                        }
+                    }
+
+                    // --- Space Filtering ---
+                    if (fSpace !== 'all') {
+                        const boolVal = (fSpace === 'true');
+                        if (s.spaceRequired !== boolVal) return false;
+                    }
+
+                    // --- Advanced Filtering ---
+                    if (fAdv !== 'all') {
+                        const hasAdv = (s.includeKeys.length > 0 || s.excludeKeys.length > 0);
+                        if (fAdv === 'used' && !hasAdv) return false;
+                        if (fAdv === 'none' && hasAdv) return false;
+                    }
+
+                    return true;
+                });
+            }
+
+            initChart() {
+                const ctx = document.getElementById('historyChart').getContext('2d');
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [], 
+                        datasets: [{
+                            label: 'KPM (タイプ速度)',
+                            data: [],
+                            borderColor: '#e2b714',
+                            backgroundColor: 'rgba(226, 183, 20, 0.2)',
+                            tension: 0.2,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'category', // 明示的にCategoryを指定
+                                ticks: { color: '#d1d0c5' },
+                                grid: { color: '#646669' },
+                                title: {
+                                    display: true,
+                                    text: '回数',
+                                    color: '#d1d0c5'
+                                }
+                            },
+                            y: {
+                                ticks: { color: '#d1d0c5' },
+                                grid: { color: '#646669' },
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: { labels: { color: '#d1d0c5' } },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        const raw = context[0].raw;
+                                        if (raw && raw.extra && raw.extra.date) {
+                                            return raw.extra.date;
+                                        }
+                                        return context[0].label;
+                                    },
+                                    afterLabel: function(context) {
+                                        const raw = context.raw;
+                                        if (raw.extra) {
+                                            const s = raw.extra;
+                                            return [
+                                                `Level: ${s.level}`,
+                                                `単語: ${s.wordCount}, 時間: ${s.timeLimit}s`,
+                                                `Space: ${s.spaceRequired ? 'あり' : 'なし'}`
+                                            ];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                this.updateChart();
+            }
+
+            updateChart() {
+                if (!this.chart) return;
+                
+                // 1. まず条件(時間、単語数など)でフィルタリング
+                let filtered = this.getFilteredData();
+                
+                // 2. 日付順にソート
+                filtered.sort((a, b) => a.timestamp - b.timestamp);
+
+                // 3. インデックスを付与（1回目、2回目...）
+                let indexedData = filtered.map((rec, i) => ({
+                    index: i + 1,
+                    record: rec
+                }));
+
+                // 4. 範囲指定でスライス
+                const rangeStartVal = document.getElementById('filterRangeStart').value;
+                const rangeEndVal = document.getElementById('filterRangeEnd').value;
+                
+                let start = parseInt(rangeStartVal);
+                let end = parseInt(rangeEndVal);
+
+                if (isNaN(start) || start < 1) start = 1;
+                if (isNaN(end)) end = indexedData.length;
+
+                // 範囲フィルタ適用
+                const slicedData = indexedData.filter(item => item.index >= start && item.index <= end);
+
+                // 5. データセット作成
+                const labels = slicedData.map(item => `${item.index}`);
+                const dataPoints = slicedData.map(item => ({
+                    x: `${item.index}`, 
+                    y: item.record.kpm,
+                    extra: {
+                        level: item.record.level,
+                        wordCount: item.record.settings.wordCount,
+                        timeLimit: item.record.settings.timeLimit,
+                        spaceRequired: item.record.settings.spaceRequired,
+                        date: new Date(item.record.timestamp).toLocaleString()
+                    }
+                }));
+
+                this.chart.data.labels = labels;
+                this.chart.data.datasets[0].data = dataPoints;
+                this.chart.update();
+            }
+        }
+
+        class TypingTest {
+            constructor(wordsData) {
+                this.allWords = wordsData;
+                this.initElements();
+                this.initGame();
+                this.initEventListeners();
+                this.historyManager = new HistoryManager();
+                this.restart();
+            }
+
+            initGame() {
+                this.words = [];
+                this.wordBoundaries = [];
+                this.fullKanaString = '';
+                this.wordTyper = null;
+                this.correctTypedKeys = 0;
+                this.correctTypedKeysNoSpace = 0;
+                this.incorrectChars = 0;
+                this.totalTypedChars = 0;
+                this.startTime = null;
+                this.endTime = null;
+                this.timer = null;
+                this.timeLeft = 60;
+                this.isActive = false;
+                this.isCompleted = false;
+                this.lastScrolledLine = -1;
+            }
+
+            initElements() {
+                this.testArea = document.getElementById('testArea');
+                this.wordDisplay = document.getElementById('wordDisplay');
+                this.wordStream = document.getElementById('wordStream');
+                this.kanaDisplay = document.getElementById('kanaDisplay');
+                this.kanaStream = document.getElementById('kanaStream');
+                this.kpmElement = document.getElementById('kpm');
+                this.kpsElement = document.getElementById('kps');
+                this.accuracyElement = document.getElementById('accuracy');
+                this.timerElement = document.getElementById('timer');
+                this.results = document.getElementById('results');
+                
+                // Controls
+                this.wordCountSelect = document.getElementById('wordCountSelect');
+                this.customWordCount = document.getElementById('customWordCount');
+                this.timeLimitSelect = document.getElementById('timeLimitSelect');
+                this.customTimeLimit = document.getElementById('customTimeLimit');
+                this.strokeLimitSelect = document.getElementById('strokeLimitSelect');
+                this.customStrokeLimit = document.getElementById('customStrokeLimit');
+                this.spaceToggle = document.getElementById('spaceToggle');
+                
+                // Advanced Controls
+                this.includeKeysInput = document.getElementById('includeKeys');
+                this.excludeKeysInput = document.getElementById('excludeKeys');
+                this.exportSettingsBtn = document.getElementById('exportSettingsBtn');
+                this.importSettingsBtn = document.getElementById('importSettingsBtn');
+                this.importFileInput = document.getElementById('importFileInput');
+
+                this.restartBtn = document.getElementById('restartBtn');
+                this.restartBtnResults = document.getElementById('restartBtnResults');
+                this.progressFill = document.getElementById('progressFill');
+
+                // Toggle & Compact Mode Elements
+                this.toggleLevelBtn = document.getElementById('toggleLevelBtn');
+                this.levelChartContainer = document.getElementById('levelChartContainer');
+                this.compactModeBtn = document.getElementById('compactModeBtn');
+                this.exitCompactBtn = document.getElementById('exitCompactBtn');
+            }
+
+            initEventListeners() {
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.testArea.addEventListener('click', () => this.startTest());
+                this.restartBtn.addEventListener('click', () => this.restart());
+                this.restartBtnResults.addEventListener('click', () => this.restart());
+                
+                // Settings change events
+                const settingInputs = [
+                    this.wordCountSelect, this.customWordCount,
+                    this.timeLimitSelect, this.customTimeLimit,
+                    this.strokeLimitSelect, this.customStrokeLimit,
+                    this.spaceToggle, this.includeKeysInput, this.excludeKeysInput
+                ];
+                settingInputs.forEach(el => el.addEventListener('change', () => this.restart()));
+                
+                window.addEventListener('resize', () => {
+                    this.calculateLines();
+                    this.adjustWordDisplayHeight();
+                });
+
+                // Level Chart Toggle
+                this.toggleLevelBtn.addEventListener('click', () => {
+                    const isHidden = this.levelChartContainer.style.display === 'none';
+                    this.levelChartContainer.style.display = isHidden ? 'block' : 'none';
+                    this.toggleLevelBtn.textContent = isHidden ? 'レベル一覧を隠す' : 'レベル一覧を表示';
+                });
+
+                // Compact Mode Toggle
+                this.compactModeBtn.addEventListener('click', () => {
+                    document.body.classList.add('compact-mode');
+                });
+                this.exitCompactBtn.addEventListener('click', () => {
+                    document.body.classList.remove('compact-mode');
+                });
+
+                // Import/Export
+                this.exportSettingsBtn.addEventListener('click', () => this.exportSettings());
+                this.importSettingsBtn.addEventListener('click', () => this.importFileInput.click());
+                this.importFileInput.addEventListener('change', (e) => this.importSettings(e));
+            }
+
+            // --- Getter Methods ---
+            getWordCount() {
+                const customCount = parseInt(this.customWordCount.value);
+                if (!isNaN(customCount) && customCount > 0) return customCount;
+                return parseInt(this.wordCountSelect.value);
+            }
+
+            getTimeLimit() {
+                const customTime = parseInt(this.customTimeLimit.value);
+                if (!isNaN(customTime) && customTime >= 0) return customTime;
+                return parseInt(this.timeLimitSelect.value);
+            }
+
+            getStrokeLimit() {
+                const customStroke = parseInt(this.customStrokeLimit.value);
+                if (!isNaN(customStroke) && customStroke > 0) return customStroke;
+                return parseInt(this.strokeLimitSelect.value);
+            }
+
+            getIncludeKeys() {
+                const val = this.includeKeysInput.value.trim();
+                if (!val) return [];
+                return val.split(/[\s,、]+/).filter(s => s.length > 0);
+            }
+
+            getExcludeKeys() {
+                const val = this.excludeKeysInput.value.trim();
+                if (!val) return [];
+                return val.split(/[\s,、]+/).filter(s => s.length > 0);
+            }
+
+            // --- Main Logic ---
+            handleKeyDown(e) {
+                const target = e.target;
+                if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'SUMMARY') {
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    this.restart();
+                    return;
+                }
+                if (this.isCompleted) return;
+                if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+                if (e.ctrlKey || e.metaKey) return;
+
+                e.preventDefault();
+
+                if (!this.isActive) {
+                    this.startTest();
+                }
+                
+                if (e.key === 'Backspace') {
+                    return; 
+                }
+
+                const key = e.key.toLowerCase();
+                if (!this.spaceToggle.checked && key === ' ') {
+                     return;
+                }
+                
+                if (key.length > 1 && key !== ' ') return;
+
+                this.totalTypedChars++;
+
+                const prevTypedKana = this.wordTyper.getTypedKana();
+
+                const result = this.wordTyper.update(key);
+
+                if (result.isCorrect) {
+                    this.correctTypedKeys++;
+                    if (key !== ' ') {
+                        this.correctTypedKeysNoSpace++;
+                    }
+                } else {
+                    this.incorrectChars++;
+                }
+
+                this.updateScrolling();
+                this.updateWordHighlight();
+
+                // 打鍵数制限チェック
+                const strokeLimit = this.getStrokeLimit();
+                if (strokeLimit > 0 && this.correctTypedKeysNoSpace >= strokeLimit) {
+                    this.completeTest();
+                    return;
+                }
+
+                if (this.wordTyper.isFinished()) {
+                    this.completeTest();
+                    return;
+                }
+                this.updateStats();
+            }
+
+            generateWords() {
+                const strokeLimit = this.getStrokeLimit();
+                this.words = [];
+                
+                const includeKeys = this.getIncludeKeys();
+                const excludeKeys = this.getExcludeKeys();
+                
+                let candidateWords = this.allWords;
+                if (includeKeys.length > 0 || excludeKeys.length > 0) {
+                    candidateWords = this.allWords.filter(word => 
+                        checkWordMatchesKana(word, includeKeys, excludeKeys)
+                    );
+                }
+
+                if (candidateWords.length === 0) {
+                    this.wordStream.innerHTML = '<span style="color:red; font-size:1rem;">条件に一致する単語がありません。設定を見直してください。</span>';
+                    return;
+                }
+
+                const shuffled = candidateWords.sort(() => 0.5 - Math.random());
+
+                if (strokeLimit > 0) {
+                    let currentMinStrokes = 0;
+                    let i = 0;
+                    while (currentMinStrokes < strokeLimit) {
+                        const word = shuffled[i % shuffled.length];
+                        const kanaStr = word.kana.join('');
+                        const minS = calculateMinKeystrokes(kanaStr);
+                        
+                        if (kanaStr.endsWith('っ')) {
+                            i++;
+                            continue;
+                        }
+
+                        this.words.push(word);
+                        currentMinStrokes += minS;
+                        i++;
+                    }
+                } else {
+                    const wordCount = this.getWordCount();
+                    this.words = [];
+                    for (let i = 0; i < wordCount; i++) {
+                         this.words.push(shuffled[i % shuffled.length]);
+                    }
+                }
+
+                if (this.words.length === 0) {
+                     this.wordStream.innerHTML = '<span style="color:red; font-size:1rem;">単語生成エラー。</span>';
+                     return;
+                }
+
+                this.wordBoundaries = [];
+                let currentKanaLength = 0;
+                const isSpaceRequired = this.spaceToggle.checked;
+
+                const kanaParts = this.words.map(w => w.kana.join(''));
+                
+                this.fullKanaString = isSpaceRequired ? kanaParts.join('　') : kanaParts.join('');
+
+                this.wordStream.innerHTML = '';
+
+                this.words.forEach((word, index) => {
+                    const wordEl = document.createElement('span');
+                    wordEl.id = `word-span-${index}`;
+                    wordEl.className = 'word';
+                    wordEl.textContent = word.text;
+                    this.wordStream.appendChild(wordEl);
+                    
+                    if (index < this.words.length - 1) {
+                         const space = document.createTextNode(' ');
+                         this.wordStream.appendChild(space);
+                    }
+
+                    const kanaLength = kanaParts[index].length;
+                    this.wordBoundaries.push({
+                        startIndex: currentKanaLength,
+                        endIndex: currentKanaLength + kanaLength,
+                        element: wordEl
+                    });
+                    
+                    currentKanaLength += kanaLength + (isSpaceRequired ? 1 : 0);
+                });
+
+                this.calculateLines();
+                this.wordTyper = new WordTyper(this.fullKanaString);
+                this.adjustWordDisplayHeight();
+                this.updateScrolling();
+                this.updateWordHighlight();
+            }
+
+            calculateLines() {
+                this.lineBreakWordIndices = [0];
+                const wordSpans = Array.from(this.wordStream.querySelectorAll('.word'));
+                if (wordSpans.length === 0) return;
+
+                let lastOffsetTop = wordSpans[0].offsetTop;
+                for (let i = 1; i < wordSpans.length; i++) {
+                    const t = wordSpans[i].offsetTop;
+                    if (t > lastOffsetTop + 1) {
+                        this.lineBreakWordIndices.push(i);
+                        lastOffsetTop = t;
+                    }
+                }
+            }
+
+            adjustWordDisplayHeight() {
+                const MAX_LINES = 5;
+
+                if (!this.lineBreakWordIndices || this.lineBreakWordIndices.length === 0) {
+                    this.wordDisplay.style.height = '';
+                    return;
+                }
+
+                const lineCount = this.lineBreakWordIndices.length;
+                const usedLines = Math.min(lineCount, MAX_LINES);
+
+                let lineHeightPx = 0;
+                const sampleEl = this.wordStream.querySelector('.word');
+                if (sampleEl) {
+                    const cs = getComputedStyle(sampleEl);
+                    lineHeightPx = parseFloat(cs.lineHeight) || 0;
+                }
+                if (!lineHeightPx) {
+                    const cs2 = getComputedStyle(this.wordDisplay);
+                    lineHeightPx = parseFloat(cs2.lineHeight) || parseFloat(cs2.fontSize) * 2.2 || 40;
+                }
+
+                const wdCs = getComputedStyle(this.wordDisplay);
+                const paddingTop = parseFloat(wdCs.paddingTop) || 0;
+                const paddingBottom = parseFloat(wdCs.paddingBottom) || 0;
+                const extra = 6;
+
+                const desiredHeight = Math.min(
+                    usedLines * lineHeightPx + paddingTop + paddingBottom + extra,
+                    window.innerHeight * 0.8
+                );
+
+                this.wordDisplay.style.height = `${Math.round(desiredHeight)}px`;
+            }
+
+            updateWordHighlight() {
+                const typedLength = this.wordTyper.getTypedKana().length;
+                let currentWordIndex = -1;
+
+                this.wordBoundaries.forEach((boundary, index) => {
+                    boundary.element.classList.remove('current');
+                    if (typedLength >= boundary.startIndex && typedLength < boundary.endIndex) {
+                        boundary.element.classList.add('current');
+                        currentWordIndex = index;
+                    }
+                });
+
+                if (currentWordIndex === -1 && typedLength >= this.fullKanaString.length) {
+                    if (this.wordBoundaries.length > 0) {
+                        this.wordBoundaries[this.wordBoundaries.length - 1].element.classList.add('current');
+                        currentWordIndex = this.wordBoundaries.length - 1;
+                    }
+                }
+
+                if (currentWordIndex > -1) {
+                    const currentLine = this.lineBreakWordIndices.findLastIndex(lineStartIndex => currentWordIndex >= lineStartIndex);
+
+                    if (currentLine >= 1 && (currentLine % 2) === 1) {
+                        const scrollToLineIndex = currentLine - 1;
+                        if (this.lastScrolledLine !== scrollToLineIndex) {
+                            const firstWordIndexOfTargetLine = this.lineBreakWordIndices[scrollToLineIndex];
+                            const firstWordEl = this.wordBoundaries[firstWordIndexOfTargetLine].element;
+                            const scrollAmount = firstWordEl.offsetTop - this.wordBoundaries[0].element.offsetTop;
+                            const extraScroll = 3;
+                            this.wordStream.style.transform = `translateY(-${scrollAmount + extraScroll}px)`;
+                            this.lastScrolledLine = scrollToLineIndex;
+                        }
+                    } else {
+                        if (currentLine === 0 && this.lastScrolledLine !== 0) {
+                            this.wordStream.style.transform = `translateY(0px)`;
+                            this.lastScrolledLine = 0;
+                        }
+                    }
+                }
+            }
+
+            updateScrolling() {
+                if (!this.wordTyper) return;
+
+                const typed = this.wordTyper.getTypedKana();
+                const typedLength = typed.length;
+                
+                let untypedForDisplay;
+                let typedForDisplay;
+
+                if (this.spaceToggle.checked) {
+                    untypedForDisplay = this.fullKanaString.substring(typedLength);
+                    typedForDisplay = typed;
+                } else {
+                    const untyped_parts = [];
+                    for (const boundary of this.wordBoundaries) {
+                        if (boundary.endIndex <= typedLength) {
+                            continue;
+                        }
+                        const word = this.fullKanaString.substring(boundary.startIndex, boundary.endIndex);
+                        if (boundary.startIndex < typedLength) {
+                            untyped_parts.push(word.substring(typedLength - boundary.startIndex));
+                        } else {
+                            untyped_parts.push(word);
+                        }
+                    }
+                    untypedForDisplay = untyped_parts.join('　');
+
+                    const typed_parts = [];
+                    for (const boundary of this.wordBoundaries) {
+                        if (boundary.startIndex >= typedLength) {
+                            break; 
+                        }
+                        const word = this.fullKanaString.substring(boundary.startIndex, boundary.endIndex);
+                        if (boundary.endIndex > typedLength) {
+                            typed_parts.push(word.substring(0, typedLength - boundary.startIndex));
+                        } else {
+                            typed_parts.push(word);
+                        }
+                    }
+                    typedForDisplay = typed_parts.join('　');
+
+                    const atWordBoundary = this.wordBoundaries.some(b => b.endIndex === typedLength);
+                    const isNotTheEnd = typedLength < this.fullKanaString.length;
+                    if (atWordBoundary && isNotTheEnd) {
+                        typedForDisplay += '　';
+                    }
+                }
+
+                this.kanaStream.innerHTML = 
+                    `<span class="typed">${typedForDisplay}</span>` +
+                    `<span id="cursor"></span>` +
+                    `<span class="untyped">${untypedForDisplay}</span>`;
+
+                const cursorEl = document.getElementById('cursor');
+                if (cursorEl) {
+                    const scrollOffset = cursorEl.offsetLeft;
+                    this.kanaStream.style.transform = `translateX(-${scrollOffset}px)`;
+                }
+                
+                this.updateProgress();
+            }
+
+            updateProgress() {
+                const strokeLimit = this.getStrokeLimit();
+                if (strokeLimit > 0) {
+                    const progress = Math.min(100, (this.correctTypedKeysNoSpace / strokeLimit) * 100);
+                    this.progressFill.style.width = `${progress}%`;
+                } else {
+                    if (!this.wordTyper) return;
+                    const progress = (this.wordTyper.getTypedKana().length / this.fullKanaString.length) * 100;
+                    this.progressFill.style.width = `${progress}%`;
+                }
+            }
+
+            startTest() {
+                if (this.isActive || this.isCompleted) return;
+                
+                this.isActive = true;
+                this.startTime = Date.now();
+                this.wordDisplay.classList.add('active');
+                
+                const timeLimit = this.getTimeLimit();
+                if (timeLimit > 0) {
+                    this.timeLeft = timeLimit;
+                    this.timerElement.textContent = this.timeLeft;
+                    this.startTimer();
+                }
+            }
+
+            startTimer() {
+                if (this.timer) clearInterval(this.timer);
+                this.timer = setInterval(() => {
+                    this.timeLeft--;
+                    this.timerElement.textContent = this.timeLeft;
+                    this.updateStats();
+                    if (this.timeLeft <= 0) {
+                        this.completeTest();
+                    }
+                }, 1000);
+            }
+
+            completeTest() {
+                this.isActive = false;
+                this.isCompleted = true;
+                this.endTime = Date.now();
+                if (this.timer) clearInterval(this.timer);
+                this.wordDisplay.classList.remove('active');
+                this.showResults();
+            }
+
+            updateStats() {
+                const elapsedSeconds = this.startTime ? (Date.now() - this.startTime) / 1000 : 0;
+                
+                const strokeLimit = this.getStrokeLimit();
+                if (strokeLimit > 0 && this.getTimeLimit() === 0) {
+                     this.timerElement.textContent = Math.round(elapsedSeconds);
+                }
+
+                if (elapsedSeconds === 0) return;
+
+                const kps = this.correctTypedKeys / elapsedSeconds;
+                const kpm = kps * 60;
+                const accuracy = this.totalTypedChars > 0 
+                    ? Math.round((this.correctTypedKeys / this.totalTypedChars) * 100)
+                    : 100;
+
+                this.kpmElement.textContent = Math.round(kpm);
+                this.kpsElement.textContent = kps.toFixed(2);
+                this.accuracyElement.textContent = `${Math.max(0, accuracy)}%`;
+            }
+
+            showResults() {
+                const elapsedSeconds = (this.endTime - this.startTime) / 1000;
+                const kps = elapsedSeconds > 0 ? this.correctTypedKeys / elapsedSeconds : 0;
+                const kpm = kps * 60;
+                const accuracy = this.totalTypedChars > 0 
+                    ? Math.round((this.correctTypedKeys / this.totalTypedChars) * 100)
+                    : 100;
+                const level = getLevel(kpm);
+
+                document.getElementById('finalLevel').textContent = level;
+                document.getElementById('finalKPM').textContent = Math.round(kpm);
+                document.getElementById('finalKPS').textContent = kps.toFixed(2);
+                document.getElementById('finalAccuracy').textContent = `${Math.max(0, accuracy)}%`;
+                document.getElementById('finalTime').textContent = `${Math.round(elapsedSeconds)}s`;
+
+                // --- Populate Result Settings ---
+                document.getElementById('resWordCount').textContent = this.getWordCount();
+                document.getElementById('resTimeLimit').textContent = this.getTimeLimit() === 0 ? "無制限" : `${this.getTimeLimit()}秒`;
+                document.getElementById('resStrokeLimit').textContent = this.getStrokeLimit() === 0 ? "無制限" : this.getStrokeLimit();
+                document.getElementById('resSpace').textContent = this.spaceToggle.checked ? "ON" : "OFF";
+                
+                const inc = this.getIncludeKeys().join(', ');
+                const exc = this.getExcludeKeys().join(', ');
+                document.getElementById('resInclude').textContent = inc || "(なし)";
+                document.getElementById('resExclude').textContent = exc || "(なし)";
+
+                // --- SAVE RECORD ---
+                const record = {
+                    timestamp: Date.now(),
+                    kpm: kpm,
+                    kps: kps,
+                    accuracy: accuracy,
+                    level: level,
+                    elapsedTime: elapsedSeconds,
+                    settings: {
+                        wordCount: this.getWordCount(),
+                        timeLimit: this.getTimeLimit(),
+                        strokeLimit: this.getStrokeLimit(),
+                        spaceRequired: this.spaceToggle.checked,
+                        includeKeys: this.getIncludeKeys(),
+                        excludeKeys: this.getExcludeKeys()
+                    }
+                };
+                this.historyManager.save(record);
+
+                this.results.classList.add('show');
+            }
+
+            restart() {
+                if (this.timer) clearInterval(this.timer);
+                this.initGame();
+                
+                const timeLimit = this.getTimeLimit();
+                this.timeLeft = timeLimit > 0 ? timeLimit : 0;
+
+                this.wordDisplay.classList.remove('active');
+                this.results.classList.remove('show');
+                this.progressFill.style.width = '0%';
+                this.timerElement.textContent = timeLimit > 0 ? timeLimit : '∞';
+                
+                this.generateWords();
+                this.updateStats();
+            }
+
+            // --- Import / Export Settings Logic ---
+            exportSettings() {
+                const settings = {
+                    wordCountSelect: this.wordCountSelect.value,
+                    customWordCount: this.customWordCount.value,
+                    timeLimitSelect: this.timeLimitSelect.value,
+                    customTimeLimit: this.customTimeLimit.value,
+                    strokeLimitSelect: this.strokeLimitSelect.value,
+                    customStrokeLimit: this.customStrokeLimit.value,
+                    spaceToggle: this.spaceToggle.checked,
+                    includeKeys: this.includeKeysInput.value,
+                    excludeKeys: this.excludeKeysInput.value
+                };
+                
+                const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'typing-settings.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            importSettings(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const settings = JSON.parse(event.target.result);
+                        this.wordCountSelect.value = settings.wordCountSelect || "30";
+                        this.customWordCount.value = settings.customWordCount || "";
+                        this.timeLimitSelect.value = settings.timeLimitSelect || "60";
+                        this.customTimeLimit.value = settings.customTimeLimit || "";
+                        this.strokeLimitSelect.value = settings.strokeLimitSelect || "0";
+                        this.customStrokeLimit.value = settings.customStrokeLimit || "";
+                        this.spaceToggle.checked = settings.spaceToggle !== false; // Default true
+                        this.includeKeysInput.value = settings.includeKeys || "";
+                        this.excludeKeysInput.value = settings.excludeKeys || "";
+                        
+                        alert("設定をインポートしました。");
+                        this.restart();
+                    } catch (err) {
+                        alert("設定ファイルの読み込みに失敗しました。");
+                        console.error(err);
+                    }
+                };
+                reader.readAsText(file);
+                // Reset input
+                e.target.value = '';
+            }
+        }
+
+        function populateLevelChart() {
+            const tableBody = document.querySelector('#levelTable tbody');
+            if (!tableBody) return;
+
+            let tableContent = '';
+            levelMap.forEach(item => {
+                tableContent += `
+                    <tr>
+                        <td>${item.level}</td>
+                        <td>${item.kpm >= 1000 ? Math.round(item.kpm) : item.kpm.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            tableBody.innerHTML = tableContent;
+        }
+
+        async function init() {
+            try {
+                const response = await fetch('khjy.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                new TypingTest(data.list);
+            } catch (error) {
+                console.error("Could not load word list:", error);
+                document.getElementById('wordDisplay').textContent = '単語リストの読み込みに失敗しました。';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            populateLevelChart();
+        });
+    })();
+    </script>
+</body>
+</html>

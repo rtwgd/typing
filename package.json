@@ -1,0 +1,14 @@
+{
+  "name": "typing-game",
+  "version": "1.0.0",
+  "description": "Online multiplayer typing game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "uuid": "^13.0.0",
+    "ws": "^8.2.3"
+  }
+}
