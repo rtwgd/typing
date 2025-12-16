@@ -484,7 +484,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-const INACTIVE_ROOM_TIMEOUT = 1 * 60 * 60 * 1000; 
+const INACTIVE_ROOM_TIMEOUT = 24 * 60 * 60 * 1000; 
 
 setInterval(() => {
     const now = Date.now();
